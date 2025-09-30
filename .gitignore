@@ -1,0 +1,38 @@
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build
+dist
+build
+*.tsbuildinfo
+*.log
+app.js
+
+# Editor
+.vscode
+.idea
+*.swp
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+__MACOSX
+
+# System
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# JS Files
+*.js
+*.html
