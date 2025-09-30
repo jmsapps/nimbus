@@ -126,8 +126,6 @@ template mountCase*[T](parent: Node, disc: Signal[T], body: untyped) =
     ))
   )
 
-
-
 template makeTag(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")
@@ -218,9 +216,6 @@ template makeTag(name: untyped) =
 
         result = newCall(ident"mountCase", parent, disc, caseNode)
 
-
-
-
       of nnkForStmt, nnkWhileStmt:
         let loop = copy node
         loop[^1] = lowerMount(parent, node[^1])
@@ -261,8 +256,6 @@ template makeTag(name: untyped) =
     stmts.add n
     result = stmts
 
-
-
 makeTag `d`
 makeTag `h1`
 makeTag `section`
@@ -272,7 +265,6 @@ makeTag `ul`
 makeTag `li`
 makeTag `style`
 makeTag `b`
-
 
 when isMainModule:
   var count: Signal[int] = signal(0)
@@ -313,11 +305,12 @@ when isMainModule:
       else:
         b: "ODD"
 
-      case name:
-      of "Jebbrel":
-        h1: "Jebbrel"
-      else:
-        h1: "Almanda"
+      h1:
+        case name:
+        of "Jebbrel":
+          "Jebbrel"
+        else:
+          "Almanda"
 
       ul:
         for i in 1..3:
