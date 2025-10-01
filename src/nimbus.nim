@@ -52,7 +52,6 @@ proc effect*[T](fn: proc(): Unsub, deps: openArray[Signal[T]]): Unsub =
   var unsubs: seq[Unsub] = @[]
   for d in deps:
     unsubs.add d.sub(proc (v: type(d.value)) = run())
-  run()
   result = proc() =
     for u in unsubs:
       if u != nil: u()
@@ -68,7 +67,6 @@ proc effect*[T](fn: proc(): void, deps: openArray[Signal[T]]): Unsub =
   var unsubs: seq[Unsub] = @[]
   for d in deps:
     unsubs.add d.sub(proc (v: type(d.value)) = run())
-  run()
   result = proc() =
     for u in unsubs:
       if u != nil: u()
