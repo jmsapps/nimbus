@@ -43,6 +43,49 @@ proc derived*[A, B](src: Signal[A], fn: proc(a: A): B): Signal[B] =
   discard src.sub(proc(a: A) = res.set(fn(a)))
   res
 
+# fn returns Unsub
+proc effect*[T](fn: proc(): Unsub, deps: openArray[Signal[T]]): Unsub =
+  var cleanup: Unsub
+  proc run() =
+    if cleanup != nil: cleanup()
+    cleanup = fn()
+  var unsubs: seq[Unsub] = @[]
+  for d in deps:
+    unsubs.add d.sub(proc (v: type(d.value)) = run())
+  run()
+  result = proc() =
+    for u in unsubs:
+      if u != nil: u()
+    if cleanup != nil: cleanup()
+
+# fn returns void
+proc effect*[T](fn: proc(): void, deps: openArray[Signal[T]]): Unsub =
+  var cleanup: Unsub
+  proc run() =
+    if cleanup != nil: cleanup()
+    fn()
+    cleanup = nil
+  var unsubs: seq[Unsub] = @[]
+  for d in deps:
+    unsubs.add d.sub(proc (v: type(d.value)) = run())
+  run()
+  result = proc() =
+    for u in unsubs:
+      if u != nil: u()
+    if cleanup != nil:
+      cleanup()
+
+# No-deps variants
+proc effect*(fn: proc(): Unsub): Unsub =
+  var cleanup = fn()
+  result = proc() =
+    if cleanup != nil:
+      cleanup()
+
+proc effect*(fn: proc(): void): Unsub =
+  fn()
+  result = proc() = discard
+
 # ------------------- JS DOM shims -------------------
 proc jsCreateElement*(s: cstring): Node {.importjs: "document.createElement(#)".}
 proc jsCreateTextNode*(s: cstring): Node {.importjs: "document.createTextNode(#)".}
@@ -292,6 +335,28 @@ when isMainModule:
   var name: Signal[string] =  derived(isEven, proc (x: bool): string =
     if x == true: "Jebbrel likes even numbers" else: "Almanda likes odd numbers"
   )
+
+  discard effect(proc (): Unsub =
+    proc cleanup() =
+      echo "cleanup ran"
+    echo "effect ran, count = ", count.get()
+
+    result = cleanup
+  , [count])
+
+  discard effect(proc (): void =
+    echo "effect ran, doubled = ", doubled.get()
+  , [doubled])
+
+  let unsub = effect(proc (): Unsub =
+    echo "one-time effect ran"
+    return proc() = echo "cleanup ran later"
+  )
+
+  count.set(1)
+  count.set(2)
+
+  unsub()
 
   let styleTag =
     style:
