@@ -76,16 +76,22 @@ proc removeBetween*(parent: Node, startN, endN: Node) =
 
 proc mountChild*(parent: Node, child: Node) =
   discard jsAppendChild(parent, child)
+
 proc mountChild*(parent: Node, child: string) =
   discard jsAppendChild(parent, jsCreateTextNode(cstring(child)))
+
 proc mountChild*(parent: Node, child: cstring) =
   discard jsAppendChild(parent, jsCreateTextNode(child))
+
 proc mountChild*(parent: Node, child: int) =
   discard jsAppendChild(parent, jsCreateTextNode(cstring($child)))
+
 proc mountChild*(parent: Node, child: float) =
   discard jsAppendChild(parent, jsCreateTextNode(cstring($child)))
+
 proc mountChild*(parent: Node, child: bool) =
   discard jsAppendChild(parent, jsCreateTextNode(cstring($child)))
+
 proc mountChild*[T](parent: Node, s: Signal[T]) =
   let startN = jsCreateTextNode(cstring(""))
   let endN   = jsCreateTextNode(cstring(""))
@@ -126,6 +132,9 @@ template mountCase*[T](parent: Node, disc: Signal[T], body: untyped) =
     ))
   )
 
+proc Children*(body: Node): Node =
+  block: body
+
 template makeTag(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")
@@ -150,7 +159,7 @@ template makeTag(name: untyped) =
         let vv = (if v.kind in {nnkStrLit, nnkRStrLit}: v else: newCall(ident"$", v))
         kvs.add newTree(nnkPar, newLit(k), vv)
 
-    # ----- NEW: lower control-flow to mountChild(parent, expr) -----
+    # ----- lower control-flow to mountChild(parent, expr) -----
     proc lowerMount(parent, node: NimNode): NimNode {.compileTime.} =
       case node.kind
       of nnkStmtList, nnkStmtListExpr, nnkBlockStmt:
@@ -226,7 +235,6 @@ template makeTag(name: untyped) =
         result = node
 
       else:
-        # Any expression -> mount it
         result = newCall(ident"mountChild", parent, node)
     # ----------------------------------------------------------------
 
@@ -267,54 +275,79 @@ makeTag `style`
 makeTag `b`
 
 when isMainModule:
-  var count: Signal[int] = signal(0)
-  let doubled: Signal[system.string] = derived(count, proc (x: int): string = $(x*2))
+  type
+    Props = object of RootObj
+      class: string = ""
+      children: Node
 
-  let isEven: Signal[system.bool] = derived(count, proc (x: int): bool =
+    ComponentProps = object of Props
+      text: string
+
+  var count: Signal[int] = signal(0)
+  let doubled: Signal[string] = derived(count, proc (x: int): string = $(x*2))
+
+  let isEven: Signal[bool] = derived(count, proc (x: int): bool =
     if x mod 2 == 0: true else: false
   )
   var name: Signal[string] =  derived(isEven, proc (x: bool): string =
-    if x == true: "Jebbrel" else: "Almanda"
+    if x == true: "Jebbrel likes even numbers" else: "Almanda likes odd numbers"
   )
 
   let styleTag =
     style:
       """
-        ._div_container_87897126 {
+        ._div_container_a {
           background-color: #eee;
+          padding: 12px;
+          border-radius: 8px;
+        }
+
+        ._div_container_b {
+          background-color: #ff0000ff;
           padding: 12px;
           border-radius: 8px;
         }
       """
 
-  let component: Node =
-    d(id="hero", class="_div_container_87897126"):
-      "Count: "; count; br(); "Doubled: "; doubled; br(); br();
-      button(
-        class="btn",
-        onClick = proc (e: Event) = count.set(count.get() + 1)
-      ): "Increment"
+  proc Component(props: ComponentProps): Node =
+    result =
+      d(id="hero", class=(if props.class != "": props.class else: "_div_container_a")):
+        "Count: "; count; br(); "Doubled: "; doubled; br(); br();
+        button(
+          class="btn",
+          onClick = proc (e: Event) = count.set(count.get() + 1)
+        ): "Increment"
 
-      ul:
-        li: derived(count, proc (x: int): string = $(x*2 + 1))
-        li: derived(count, proc (x: int): string = $(x*2 + 2))
-        li: derived(count, proc (x: int): string = $(x*2 + 3))
+        ul:
+          li: derived(count, proc (x: int): string = $(x*2 + 1))
+          li: derived(count, proc (x: int): string = $(x*2 + 2))
+          li: derived(count, proc (x: int): string = $(x*2 + 3))
 
-      if isEven:
-        h1: "EVEN"
-      else:
-        b: "ODD"
-
-      h1:
-        case name:
-        of "Jebbrel":
-          "Jebbrel"
+        if isEven:
+          h1: "Count is Even"
         else:
-          "Almanda"
+          h1: "Count is Odd"
 
-      ul:
-        for i in 1..3:
-          li: doubled
+        h1:
+          case name:
+          of "Jebbrel likes even numbers":
+            name.get
+          else:
+            name.get
+
+        props.children
+        props.text
+
+  let component: Node = Component(
+    ComponentProps(
+      text: "Hello world",
+      # class: "_div_container_b",
+      children: block:
+        ul:
+          for i in 1..3:
+            li: doubled
+    )
+  )
 
   discard jsAppendChild(document.head, styleTag)
   discard jsAppendChild(document.body, component)
