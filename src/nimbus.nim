@@ -314,6 +314,7 @@ makeTag `ul`
 makeTag `li`
 makeTag `style`
 makeTag `b`
+makeTag `p`
 
 when isMainModule:
   type
@@ -324,37 +325,8 @@ when isMainModule:
     ComponentProps = object of Props
       text: string
 
-  var count: Signal[int] = signal(0)
-  let doubled: Signal[string] = derived(count, proc (x: int): string = $(x*2))
-
-  let isEven: Signal[bool] = derived(count, proc (x: int): bool =
-    if x mod 2 == 0: true else: false
-  )
-  var name: Signal[string] =  derived(isEven, proc (x: bool): string =
-    if x == true: "Jebbrel likes even numbers" else: "Almanda likes odd numbers"
-  )
-
-  discard effect(proc (): Unsub =
-    proc cleanup() =
-      echo "cleanup ran"
-    echo "effect ran, count = ", count.get()
-
-    result = cleanup
-  , [count])
-
-  discard effect(proc (): void =
-    echo "effect ran, doubled = ", doubled.get()
-  , [doubled])
-
-  let unsub = effect(proc (): Unsub =
-    echo "one-time effect ran"
-    return proc() = echo "cleanup ran later"
-  )
-
-  count.set(1)
-  count.set(2)
-
-  unsub()
+    NestedComponentProps = object
+      id: string
 
   let styleTag =
     style:
@@ -372,34 +344,74 @@ when isMainModule:
         }
       """
 
-  proc Component(props: ComponentProps): Node =
-    result =
-      d(id="hero", class=(if props.class != "": props.class else: "_div_container_a")):
-        "Count: "; count; br(); "Doubled: "; doubled; br(); br();
-        button(
-          class="btn",
-          onClick = proc (e: Event) = count.set(count.get() + 1)
-        ): "Increment"
+  template NestedComponent(props: NestedComponentProps, children: untyped): Node =
+    d(id=props.id):
+      children
 
-        ul:
-          li: derived(count, proc (x: int): string = $(x*2 + 1))
-          li: derived(count, proc (x: int): string = $(x*2 + 2))
-          li: derived(count, proc (x: int): string = $(x*2 + 3))
+  template Component(props: ComponentProps): Node =
+    var count: Signal[int] = signal(0)
+    let doubled: Signal[string] = derived(count, proc (x: int): string = $(x*2))
 
-        if isEven:
-          h1: "Count is Even"
+    let isEven: Signal[bool] = derived(count, proc (x: int): bool =
+      if x mod 2 == 0: true else: false
+    )
+    var name: Signal[string] =  derived(isEven, proc (x: bool): string =
+      if x == true: "Jebbrel likes even numbers" else: "Almanda likes odd numbers"
+    )
+
+    discard effect(proc (): Unsub =
+      proc cleanup() =
+        echo "cleanup ran"
+      echo "effect ran, count = ", count.get()
+
+      result = cleanup
+    , [count])
+
+    discard effect(proc (): void =
+      echo "effect ran, doubled = ", doubled.get()
+    , [doubled])
+
+    let unsub = effect(proc (): Unsub =
+      echo "one-time effect ran"
+      return proc() = echo "cleanup ran later"
+    )
+
+    count.set(1)
+    count.set(2)
+
+    unsub()
+
+    d(id="hero", class=(if props.class != "": props.class else: "_div_container_a")):
+      "Count: "; count; br(); "Doubled: "; doubled; br(); br();
+      button(
+        class="btn",
+        onClick = proc (e: Event) = count.set(count.get() + 1)
+      ): "Increment"
+
+      ul:
+        li: derived(count, proc (x: int): string = $(x*2 + 1))
+        li: derived(count, proc (x: int): string = $(x*2 + 2))
+        li: derived(count, proc (x: int): string = $(x*2 + 3))
+
+      if isEven:
+        h1: "Count is Even"
+      else:
+        h1: "Count is Odd"
+
+      h1:
+        case name:
+        of "Jebbrel likes even numbers":
+          name.get
         else:
-          h1: "Count is Odd"
+          name.get
 
-        h1:
-          case name:
-          of "Jebbrel likes even numbers":
-            name.get
-          else:
-            name.get
+      NestedComponent(NestedComponentProps(
+        id: "nested_component")
+      ):
+        "This is a nested component"
 
-        props.children
-        props.text
+      props.children
+      props.text
 
   let component: Node = Component(
     ComponentProps(
@@ -408,7 +420,7 @@ when isMainModule:
       children: block:
         ul:
           for i in 1..3:
-            li: doubled
+            li: i
     )
   )
 
