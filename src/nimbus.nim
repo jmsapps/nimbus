@@ -85,6 +85,7 @@ proc effect*(fn: proc(): void): Unsub =
   result = proc() = discard
 
 # ------------------- JS DOM shims -------------------
+
 proc jsCreateElement*(s: cstring): Node {.importjs: "document.createElement(#)".}
 proc jsCreateTextNode*(s: cstring): Node {.importjs: "document.createTextNode(#)".}
 proc jsAppendChild*(p: Node, c: Node): Node {.importjs: "#.appendChild(#)".}
@@ -173,34 +174,41 @@ template mountCase*[T](parent: Node, disc: Signal[T], body: untyped) =
     ))
   )
 
-proc Children*(body: Node): Node =
-  block: body
-
 template makeTag(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")
+
     if tagName == "d":
       tagName = "div"
 
-    let kvs = newTree(nnkBracket)
-    var kids: seq[NimNode] = @[]
-    var evtNames: seq[string] = @[]
-    var evtHandlers: seq[NimNode] = @[]
+    let keyValues = newTree(nnkBracket)
+    var children: seq[NimNode] = @[]
+    var eventNames: seq[string] = @[]
+    var eventHandlers: seq[NimNode] = @[]
 
-    proc pushChild(n: NimNode) {.compileTime.} = kids.add n
-    proc handleAttr(kRaw: string, v: NimNode) {.compileTime.} =
-      var k = kRaw
-      if k == "className": k = "class"
-      let kl = k.toLowerAscii()
-      if kl.len >= 3 and kl[0..1] == "on":
-        let evt = kl[2..^1]
-        evtNames.add evt
-        evtHandlers.add v
+    # ----- helpers -----
+    proc pushChild(node: NimNode) {.compileTime.} =
+      children.add(node)
+
+    proc handleAttr(keyRaw: string, value: NimNode) {.compileTime.} =
+      var key = keyRaw
+      if key == "className":
+        key = "class"
+
+      let keyLowered = key.toLowerAscii()
+
+      if keyLowered.len >= 3 and keyLowered.startsWith("on"):
+        let event = keyLowered[2..^1]
+        eventNames.add(event)
+        eventHandlers.add(value)
+
       else:
-        let vv = (if v.kind in {nnkStrLit, nnkRStrLit}: v else: newCall(ident"$", v))
-        kvs.add newTree(nnkPar, newLit(k), vv)
+        let strValue = (
+          if value.kind in {nnkStrLit, nnkRStrLit}: value else: newCall(ident"$", value)
+        )
 
-    # ----- lower control-flow to mountChild(parent, expr) -----
+        keyValues.add(newTree(nnkPar, newLit(key), strValue))
+
     proc lowerMount(parent, node: NimNode): NimNode {.compileTime.} =
       case node.kind
       of nnkStmtList, nnkStmtListExpr, nnkBlockStmt:
@@ -243,7 +251,6 @@ template makeTag(name: untyped) =
           # Defer dispatch (bool vs Signal[bool]) to overload resolution
           result = newCall(ident"mountIf", parent, cond, thenExpr, elseExpr)
 
-
       of nnkCaseStmt:
         proc toExpr(body: NimNode): NimNode {.compileTime.} =
           (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
@@ -283,27 +290,45 @@ template makeTag(name: untyped) =
       case a.kind
       of nnkStmtList, nnkStmtListExpr:
         for it in a: pushChild(it)
-      of nnkExprEqExpr: handleAttr($a[0], a[1])
+
+      of nnkExprEqExpr:
+        handleAttr($a[0], a[1])
+
       of nnkInfix:
-        if a[0].kind == nnkIdent and $a[0] == "=": handleAttr($a[1], a[2]) else: pushChild(a)
-      of nnkIdent: kvs.add newTree(nnkPar, newLit($a), newLit("true"))
+        if a[0].kind == nnkIdent and $a[0] == "=":
+          handleAttr($a[1], a[2])
+        else: pushChild(a)
+
+      of nnkIdent:
+        keyValues.add(newTree(nnkPar, newLit($a), newLit("true")))
+
       else: pushChild(a)
 
-    let n = genSym(nskLet, "n")
-    let stmts = newTree(nnkStmtListExpr)
-    stmts.add newLetStmt(n, newCall(ident"el", newLit(tagName), newTree(nnkPrefix, ident"@", kvs)))
+    let node = genSym(nskLet, "node")
+    let statements = newTree(nnkStmtListExpr)
 
-    # use lowerMount for everything
-    for c in kids: stmts.add lowerMount(n, c)
+    statements.add(
+      newLetStmt(node, newCall(ident"el", newLit(tagName), newTree(nnkPrefix, ident"@", keyValues)))
+    )
 
-    # events (hoisted)
-    for i in 0 ..< evtNames.len:
+    # lower mount children
+    for child in children:
+      statements.add(lowerMount(node, child))
+
+    # hoist events
+    for i in 0 ..< eventNames.len:
       let cbSym = genSym(nskLet, "cb")
-      stmts.add newLetStmt(cbSym, evtHandlers[i])
-      stmts.add newCall(ident"jsAddEventListener", n, newCall(ident"cstring", newLit(evtNames[i])), cbSym)
 
-    stmts.add n
-    result = stmts
+      statements.add(newLetStmt(cbSym, eventHandlers[i]))
+      statements.add(
+        newCall(
+          ident"jsAddEventListener", node, newCall(ident"cstring", newLit(eventNames[i])), cbSym
+        )
+      )
+
+    statements.add(node)
+
+    result = statements
 
 makeTag `d`
 makeTag `h1`
@@ -349,13 +374,13 @@ when isMainModule:
       children
 
   template Component(props: ComponentProps): Node =
-    var count: Signal[int] = signal(0)
+    let count: Signal[int] = signal(0)
     let doubled: Signal[string] = derived(count, proc (x: int): string = $(x*2))
 
     let isEven: Signal[bool] = derived(count, proc (x: int): bool =
       if x mod 2 == 0: true else: false
     )
-    var name: Signal[string] =  derived(isEven, proc (x: bool): string =
+    let name: Signal[string] =  derived(isEven, proc (x: bool): string =
       if x == true: "Jebbrel likes even numbers" else: "Almanda likes odd numbers"
     )
 
