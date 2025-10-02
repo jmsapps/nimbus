@@ -380,14 +380,22 @@ when isMainModule:
     let isEven: Signal[bool] = derived(count, proc (x: int): bool =
       if x mod 2 == 0: true else: false
     )
-    let name: Signal[string] =  derived(isEven, proc (x: bool): string =
-      if x == true: "Jebbrel likes even numbers" else: "Almanda likes odd numbers"
-    )
+
+    let fruit: Signal[string] = signal("Apple")
+    let fruitIndex: Signal[int] = signal(0)
 
     discard effect(proc (): Unsub =
       proc cleanup() =
         echo "cleanup ran"
+
       echo "effect ran, count = ", count.get()
+
+      let fruitBasket = @["apples", "bananas", "cherries", "dates"]
+      fruit.set(fruitBasket[fruitIndex.get()])
+
+      let newFruitIndex = (if fruitIndex.get() < 3: fruitIndex.get() + 1 else: 0)
+
+      fruitIndex.set(newFruitIndex)
 
       result = cleanup
     , [count])
@@ -400,9 +408,6 @@ when isMainModule:
       echo "one-time effect ran"
       return proc() = echo "cleanup ran later"
     )
-
-    count.set(1)
-    count.set(2)
 
     unsub()
 
@@ -423,12 +428,19 @@ when isMainModule:
       else:
         h1: "Count is Odd"
 
-      h1:
-        case name:
-        of "Jebbrel likes even numbers":
-          name.get
+      h1(id=2):
+        "Jebbrel wants to eat "
+        case fruit:
+        of "apples":
+          fruit.get
+        of "bananas":
+          fruit.get
+        of "cherries":
+          fruit.get
+        of "dates":
+          fruit.get
         else:
-          name.get
+          ""
 
       NestedComponent(NestedComponentProps(
         id: "nested_component")
