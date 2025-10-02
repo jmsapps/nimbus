@@ -463,3 +463,8 @@ when isMainModule:
 
   discard jsAppendChild(document.head, styleTag)
   discard jsAppendChild(document.body, component)
+
+
+# TODO:
+  # - Implement reactive attributes
+  # - Allow comparisons between signals and other values in if statement lowering
