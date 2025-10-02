@@ -174,6 +174,44 @@ template mountCase*[T](parent: Node, disc: Signal[T], body: untyped) =
     ))
   )
 
+# ------------------- Overloaded operators -------------------
+proc combine2*[A, B, R](a: Signal[A], b: Signal[B], fn: proc(x: A, y: B): R): Signal[R] =
+  let res = signal(fn(a.get(), b.get()))
+  discard a.sub(proc(x: A) = res.set(fn(x, b.get())))
+  discard b.sub(proc(y: B) = res.set(fn(a.get(), y)))
+  res
+
+proc `==`*[T](a: Signal[T], b: T): Signal[bool] =
+  derived(a, proc(x: T): bool = x == b)
+
+proc `==`*[T](a: T, b: Signal[T]): Signal[bool] =
+  derived(b, proc(x: T): bool = a == x)
+
+proc `==`*[T](a, b: Signal[T]): Signal[bool] =
+  combine2(a, b, proc(x, y: T): bool = x == y)
+
+proc `and`*(a: bool, b: Signal[bool]): Signal[bool] =
+  derived(b, proc(y: bool): bool = a and y)
+
+proc `and`*(a: Signal[bool], b: bool): Signal[bool] =
+  derived(a, proc(x: bool): bool = x and b)
+
+proc `and`*(a, b: Signal[bool]): Signal[bool] =
+  combine2(a, b, proc(x, y: bool): bool = x and y)
+
+proc `or`*(a, b: Signal[bool]): Signal[bool] =
+  combine2(a, b, proc(x, y: bool): bool = x or y)
+
+proc `or`*(a: bool, b: Signal[bool]): Signal[bool] =
+  derived(b, proc(y: bool): bool = a or y)
+
+proc `or`*(a: Signal[bool], b: bool): Signal[bool] =
+  derived(a, proc(x: bool): bool = x or b)
+
+proc `not`*(a: Signal[bool]): Signal[bool] =
+  derived(a, proc(x: bool): bool = not x)
+
+
 template makeTag(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")
@@ -348,7 +386,7 @@ when isMainModule:
       children: Node
 
     ComponentProps = object of Props
-      text: string
+      title: string
 
     NestedComponentProps = object
       id: string
@@ -360,6 +398,7 @@ when isMainModule:
           background-color: #eee;
           padding: 12px;
           border-radius: 8px;
+          font-family: sans-serif;
         }
 
         ._div_container_b {
@@ -381,7 +420,7 @@ when isMainModule:
       if x mod 2 == 0: true else: false
     )
 
-    let fruit: Signal[string] = signal("Apple")
+    let fruit: Signal[string] = signal("apple")
     let fruitIndex: Signal[int] = signal(0)
 
     discard effect(proc (): Unsub =
@@ -412,6 +451,8 @@ when isMainModule:
     unsub()
 
     d(id="hero", class=(if props.class != "": props.class else: "_div_container_a")):
+      h1: props.title
+
       "Count: "; count; br(); "Doubled: "; doubled; br(); br();
       button(
         class="btn",
@@ -424,23 +465,32 @@ when isMainModule:
         li: derived(count, proc (x: int): string = $(x*2 + 3))
 
       if isEven:
-        h1: "Count is Even"
+        "Count is even"
       else:
-        h1: "Count is Odd"
+        "Count is odd"
 
-      h1(id=2):
-        "Jebbrel wants to eat "
-        case fruit:
-        of "apples":
-          fruit.get
-        of "bananas":
-          fruit.get
-        of "cherries":
-          fruit.get
-        of "dates":
-          fruit.get
-        else:
-          ""
+      br();br();
+
+      "Jebbrel wants to eat "
+      case fruit:
+      of "apples":
+        fruit.get
+      of "bananas":
+        fruit.get
+      of "cherries":
+        fruit.get
+      of "dates":
+        fruit.get
+      else:
+        ""
+
+      "(fruit == \"apples\" and not isEven) or (fruit == \"bananas\"): "
+      if (fruit == "apples" and not isEven) or (fruit == "bananas"):
+        "Match"
+      else:
+        "No match"
+
+      br();br()
 
       NestedComponent(NestedComponentProps(
         id: "nested_component")
@@ -448,11 +498,10 @@ when isMainModule:
         "This is a nested component"
 
       props.children
-      props.text
 
   let component: Node = Component(
     ComponentProps(
-      text: "Hello world",
+      title: "Nimbus Test Playground",
       # class: "_div_container_b",
       children: block:
         ul:
@@ -463,8 +512,3 @@ when isMainModule:
 
   discard jsAppendChild(document.head, styleTag)
   discard jsAppendChild(document.body, component)
-
-
-# TODO:
-  # - Implement reactive attributes
-  # - Allow comparisons between signals and other values in if statement lowering
