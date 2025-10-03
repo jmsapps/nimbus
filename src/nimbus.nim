@@ -100,12 +100,12 @@ proc jsSetProp*(el: Node, k: cstring, v: int) {.importjs: "#[#] = #".}
 proc jsSetProp*(el: Node, k: cstring, v: float) {.importjs: "#[#] = #".}
 
 # ------------------- DOM helpers -------------------
-proc createElement*(tag: string, props: openArray[(string, string)] = []): Node =
+proc createElement*(tag: string, props: openArray[(string, string)] = [], children: varargs[Node]): Node =
   # TODO: move to constants folder
   const BOOLEAN_ATTRS: array[8, string] = [
     "hidden", "disabled", "checked", "selected", "readonly", "multiple", "required", "open"
   ]
-  let el = jsCreateElement(cstring(tag))
+  let element = jsCreateElement(cstring(tag))
 
   proc propKey(attr: string): cstring =
     case attr.toLowerAscii()
@@ -126,13 +126,13 @@ proc createElement*(tag: string, props: openArray[(string, string)] = []): Node 
     if kLower in BOOLEAN_ATTRS:
       let on: bool = toBoolStr(value)
 
-      jsSetProp(el, propKey(kLower), on)
+      jsSetProp(element, propKey(kLower), on)
 
       if on:
-        jsSetAttribute(el, cstring(kLower), "")
+        jsSetAttribute(element, cstring(kLower), "")
 
       else:
-        jsRemoveAttribute(el, cstring(kLower))
+        jsRemoveAttribute(element, cstring(kLower))
 
     else:
       if value.len == 0:
@@ -140,19 +140,22 @@ proc createElement*(tag: string, props: openArray[(string, string)] = []): Node 
         of "class", "style":
           discard
         else:
-          jsSetProp(el, propKey(kLower), cstring(""))
-        jsRemoveAttribute(el, cstring(kLower))
+          jsSetProp(element, propKey(kLower), cstring(""))
+        jsRemoveAttribute(element, cstring(kLower))
 
       else:
         case kLower
         of "class", "style":
           discard
         else:
-          jsSetProp(el, propKey(kLower), cstring(value))
+          jsSetProp(element, propKey(kLower), cstring(value))
 
-        jsSetAttribute(el, cstring(kLower), cstring(value))
+        jsSetAttribute(element, cstring(kLower), cstring(value))
 
-  result = el
+  for c in children:
+    discard jsAppendChild(element, c)
+
+  element
 
 proc toNode*(n: Node): Node = n
 proc toNode*(s: string): Node = jsCreateTextNode(cstring(s))
