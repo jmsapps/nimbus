@@ -297,16 +297,19 @@ template makeTag(name: untyped) =
         let sel  = ident"caseDisc"     # this matches the injected name above
 
         let caseNode = newTree(nnkCaseStmt, sel)
+
         for br in node[1..^1]:
           case br.kind
           of nnkOfBranch:
             var branch = newTree(nnkOfBranch)
             for lit in br[0..^2]:
-              branch.add lit
-            branch.add toExpr(br[^1])
-            caseNode.add branch
+              branch.add(lit)
+            branch.add(toExpr(br[^1]))
+            caseNode.add(branch)
+
           of nnkElse:
-            caseNode.add newTree(nnkElse, toExpr(br[0]))
+            caseNode.add(newTree(nnkElse, toExpr(br[0])))
+
           else: discard
 
         result = newCall(ident"mountCase", parent, disc, caseNode)
@@ -483,6 +486,8 @@ when isMainModule:
         fruit.get
       else:
         ""
+
+      br();br();
 
       "(fruit == \"apples\" and not isEven) or (fruit == \"bananas\"): "
       if (fruit == "apples" and not isEven) or (fruit == "bananas"):
