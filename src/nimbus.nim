@@ -93,14 +93,66 @@ proc jsRemoveChild*(p: Node, c: Node): Node {.importjs: "#.removeChild(#)".}
 proc jsInsertBefore*(p: Node, newChild: Node, refChild: Node): Node {.importjs: "#.insertBefore(#,#)".}
 proc jsSetAttribute*(el: Node, k: cstring, v: cstring) {.importjs: "#.setAttribute(#,#)".}
 proc jsAddEventListener*(el: Node, t: cstring, cb: proc (e: Event)) {.importjs: "#.addEventListener(#,#)".}
+proc jsRemoveAttribute*(el: Node, k: cstring) {.importjs: "#.removeAttribute(#)".}
+proc jsSetProp*(el: Node, k: cstring, v: bool) {.importjs: "#[#] = #".}
+proc jsSetProp*(el: Node, k: cstring, v: cstring) {.importjs: "#[#] = #".}
+proc jsSetProp*(el: Node, k: cstring, v: int) {.importjs: "#[#] = #".}
+proc jsSetProp*(el: Node, k: cstring, v: float) {.importjs: "#[#] = #".}
 
 # ------------------- DOM helpers -------------------
-proc el*(tag: string, props: openArray[(string, string)] = [], children: varargs[Node]): Node =
-  let element = jsCreateElement(cstring(tag))
-  for (k, v) in props:
-    if v.len > 0: jsSetAttribute(element, cstring(k), cstring(v))
-  for c in children: discard jsAppendChild(element, c)
-  element
+proc createElement*(tag: string, props: openArray[(string, string)] = []): Node =
+  # TODO: move to constants folder
+  const BOOLEAN_ATTRS: array[8, string] = [
+    "hidden", "disabled", "checked", "selected", "readonly", "multiple", "required", "open"
+  ]
+  let el = jsCreateElement(cstring(tag))
+
+  proc propKey(attr: string): cstring =
+    case attr.toLowerAscii()
+    of "contenteditable": "contentEditable"
+    of "for", "htmlfor": "htmlFor"
+    of "maxlength": "maxLength"
+    of "readonly": "readOnly"
+    of "tabindex": "tabIndex"
+    else: cstring(attr)
+
+  proc toBoolStr(value: string): bool =
+    let v = value.toLowerAscii()
+    v != "" and v != "false" and v != "0" and v != "off" and v != "no"
+
+  for (key, value) in props:
+    let kLower = key.toLowerAscii()
+
+    if kLower in BOOLEAN_ATTRS:
+      let on: bool = toBoolStr(value)
+
+      jsSetProp(el, propKey(kLower), on)
+
+      if on:
+        jsSetAttribute(el, cstring(kLower), "")
+
+      else:
+        jsRemoveAttribute(el, cstring(kLower))
+
+    else:
+      if value.len == 0:
+        case kLower
+        of "class", "style":
+          discard
+        else:
+          jsSetProp(el, propKey(kLower), cstring(""))
+        jsRemoveAttribute(el, cstring(kLower))
+
+      else:
+        case kLower
+        of "class", "style":
+          discard
+        else:
+          jsSetProp(el, propKey(kLower), cstring(value))
+
+        jsSetAttribute(el, cstring(kLower), cstring(value))
+
+  result = el
 
 proc toNode*(n: Node): Node = n
 proc toNode*(s: string): Node = jsCreateTextNode(cstring(s))
@@ -352,7 +404,7 @@ template makeTag(name: untyped) =
     let statements = newTree(nnkStmtListExpr)
 
     statements.add(
-      newLetStmt(node, newCall(ident"el", newLit(tagName), newTree(nnkPrefix, ident"@", keyValues)))
+      newLetStmt(node, newCall(ident"createElement", newLit(tagName), newTree(nnkPrefix, ident"@", keyValues)))
     )
 
     # lower mount children
@@ -512,7 +564,7 @@ when isMainModule:
       title: "Nimbus Test Playground",
       # class: "_div_container_b",
       children: block:
-        ul:
+        ul(hidden=false):
           for i in 1..3:
             li: i
     )
