@@ -338,12 +338,15 @@ template makeTag(name: untyped) =
       of nnkInfix:
         if a[0].kind == nnkIdent and $a[0] == "=":
           handleAttr($a[1], a[2])
-        else: pushChild(a)
+
+        else:
+          pushChild(a)
 
       of nnkIdent:
         keyValues.add(newTree(nnkPar, newLit($a), newLit("true")))
 
-      else: pushChild(a)
+      else:
+        pushChild(a)
 
     let node = genSym(nskLet, "node")
     let statements = newTree(nnkStmtListExpr)
