@@ -87,6 +87,7 @@ proc effect*(fn: proc(): void): Unsub =
 # ------------------- JS DOM shims -------------------
 
 proc jsCreateElement*(s: cstring): Node {.importjs: "document.createElement(#)".}
+proc jsCreateFragment*(): Node {.importjs: "document.createDocumentFragment()".}
 proc jsCreateTextNode*(s: cstring): Node {.importjs: "document.createTextNode(#)".}
 proc jsAppendChild*(p: Node, c: Node): Node {.importjs: "#.appendChild(#)".}
 proc jsRemoveChild*(p: Node, c: Node): Node {.importjs: "#.removeChild(#)".}
@@ -266,7 +267,6 @@ proc `or`*(a: Signal[bool], b: bool): Signal[bool] =
 proc `not`*(a: Signal[bool]): Signal[bool] =
   derived(a, proc(x: bool): bool = not x)
 
-
 template makeTag(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")
@@ -406,9 +406,15 @@ template makeTag(name: untyped) =
     let node = genSym(nskLet, "node")
     let statements = newTree(nnkStmtListExpr)
 
-    statements.add(
-      newLetStmt(node, newCall(ident"createElement", newLit(tagName), newTree(nnkPrefix, ident"@", keyValues)))
-    )
+    let createExpr =
+      if tagName == "fragment":
+        newCall(ident"jsCreateFragment")
+      elif tagName == "template":
+        newCall(ident"jsCreateTemplate")
+      else:
+        newCall(ident"createElement", newLit(tagName), newTree(nnkPrefix, ident"@", keyValues))
+
+    statements.add(newLetStmt(node, createExpr))
 
     # lower mount children
     for child in children:
@@ -429,6 +435,7 @@ template makeTag(name: untyped) =
 
     result = statements
 
+makeTag `fragment`
 makeTag `d`
 makeTag `h1`
 makeTag `section`
@@ -443,37 +450,51 @@ makeTag `p`
 when isMainModule:
   type
     Props = object of RootObj
-      class: string = ""
-      children: Node
-
-    ComponentProps = object of Props
-      title: string
-
-    NestedComponentProps = object
-      id: string
+      accesskey: string = ""        #	Keyboard shortcut to activate/focus an element
+      autocapitalize: string = ""   #	Controls text capitalization in forms (none, sentences, etc.)
+      autofocus: string = ""        #	Automatically focus element when page loads
+      class: string = ""            #	CSS class list
+      contenteditable: string = ""  #	Makes element’s content editable
+      dir: string = ""              #	Text direction (ltr, rtl, auto)
+      draggable: string = ""        #	Whether element can be dragged (true / false)
+      enterkeyhint: string = ""     #	Suggests enter key label on virtual keyboards
+      hidden: string = ""           #	Hides the element
+      id: string = ""               #	Unique element identifier
+      inert: string = ""            #	Prevents interaction/focus (newer browsers)
+      inputmode: string = ""        #	Virtual keyboard type (numeric, email, etc.)
+      `is`: string = ""             # Used for customized built-in elements
+      itemid: string = ""           # Microdata attribute
+      itemprop: string = ""         # Microdata attribute
+      itemref: string = ""          # Microdata attribute
+      itemscope: string = ""        # Microdata attribute
+      itemtype: string = ""         # Microdata attribute
+      lang: string = ""             #	Language of element content
+      nonce: string = ""            #	CSP nonce for inline scripts/styles
+      part: string = ""             # Shadow DOM parts
+      popover: string = ""          #	Popover behavior (manual, auto)
+      slot: string = ""             # Slot name for Web Components
+      spellcheck: string = ""       # Enable/disable spell checking
+      style: string = ""            #	Inline CSS styles
+      tabindex: string = ""         #	Tab order for focus
+      title: string = ""            #	Tooltip / advisory text
+      translate: string = ""        #	Whether to translate the element’s text (yes / no)
 
   let styleTag =
     style:
       """
         ._div_container_a {
           background-color: #eee;
-          padding: 12px;
-          border-radius: 8px;
+          padding: 24px;
+          border-radius: 20px;
           font-family: sans-serif;
-        }
-
-        ._div_container_b {
-          background-color: #ff0000ff;
-          padding: 12px;
-          border-radius: 8px;
         }
       """
 
-  template NestedComponent(props: NestedComponentProps, children: untyped): Node =
+  proc NestedComponent(props: Props, children: Node): Node =
     d(id=props.id):
       children
 
-  template Component(props: ComponentProps): Node =
+  proc Component(props: Props, children: Node): Node =
     let count: Signal[int] = signal(0)
     let doubled: Signal[string] = derived(count, proc (x: int): string = $(x*2))
 
@@ -511,7 +532,7 @@ when isMainModule:
 
     unsub()
 
-    d(id="hero", class=(if props.class != "": props.class else: "_div_container_a")):
+    d(id="hero", class=props.class):
       h1: props.title
 
       "Count: "; count; br(); "Doubled: "; doubled; br(); br();
@@ -555,23 +576,20 @@ when isMainModule:
 
       br();br()
 
-      NestedComponent(NestedComponentProps(
-        id: "nested_component")
-      ):
+      children
+
+  let component: Node = Component(Props(
+    title: "Nimbus Test Playground",
+    class: "_div_container_a"
+  )):
+    NestedComponent(Props(
+      id: "nested_component")
+    ):
+      fragment:
         "This is a nested component"
-
-      props.children
-
-  let component: Node = Component(
-    ComponentProps(
-      title: "Nimbus Test Playground",
-      # class: "_div_container_b",
-      children: block:
         ul(hidden=false):
           for i in 1..3:
             li: i
-    )
-  )
 
   discard jsAppendChild(document.head, styleTag)
   discard jsAppendChild(document.body, component)
