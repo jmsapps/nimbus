@@ -36,3 +36,6 @@ Desktop.ini
 # JS Files
 *.js
 *.html
+
+# Build
+nimbus
