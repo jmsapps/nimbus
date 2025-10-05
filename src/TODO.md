@@ -89,6 +89,20 @@ Features are grouped by priority and scope so we can focus on the “core primit
   - create lib, examples
   - absolute imports
 
+## Nice to haves
+
+- [ ] **Routing**
+
+  - navigate() method
+
+- [ ] **Global Store**
+
+  - Context
+  - Requires thought, TBD
+
+- [ ] **Dispatching**
+  - Requires thought, TBD
+
 ---
 
 ## v1.1+ Goals
