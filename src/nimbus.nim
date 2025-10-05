@@ -1,4 +1,4 @@
-import macros, dom, strutils
+import macros, dom, strutils, tables
 
 # ------------------- Signals -------------------
 type
@@ -83,6 +83,38 @@ proc effect*(fn: proc(): Unsub): Unsub =
 proc effect*(fn: proc(): void): Unsub =
   fn()
   result = proc() = discard
+
+# ------------------- Signal cleanup -------------------
+var cleanupRegistry = initTable[int, seq[Unsub]]()
+
+proc nodeKey(n: Node): int
+  {.importjs: """
+  (function(x){
+    if(x.__nid === undefined){
+      if(window.__nid === undefined) window.__nid = 0;
+      window.__nid = window.__nid + 1;
+      x.__nid = window.__nid;
+    }
+
+    return BigInt(x.__nid);
+  })(#)
+  """.}
+
+proc registerCleanup*(el: Node, fn: Unsub) =
+  let k = nodeKey(el)
+  if k notin cleanupRegistry:
+    cleanupRegistry[k] = @[]
+
+  cleanupRegistry[k].add(fn)
+
+proc runCleanups*(el: Node) =
+  let k = nodeKey(el)
+
+  if k in cleanupRegistry:
+    for fn in cleanupRegistry[k]:
+      if fn != nil: fn()
+
+    cleanupRegistry.del(k)
 
 # ------------------- JS DOM shims -------------------
 
@@ -169,6 +201,7 @@ proc removeBetween*(parent: Node, startN, endN: Node) =
   var n = startN.nextSibling
   while n != endN and n != nil:
     let nxt = n.nextSibling
+    runCleanups(n)
     discard jsRemoveChild(parent, n)
     n = nxt
 
@@ -201,7 +234,8 @@ proc mountChild*[T](parent: Node, s: Signal[T]) =
     discard jsInsertBefore(parent, toNode(v), endN)
 
   render(s.get())
-  discard s.sub(proc(v: T) = render(v))
+  let unsub = s.sub(proc(v: T) = render(v))
+  registerCleanup(startN, unsub)
 
 template mountIf*(parent: Node, cond: bool, thenN, elseN: untyped) =
   if cond:
@@ -374,7 +408,6 @@ template makeTag(name: untyped) =
         loop[^1] = lowerMount(parent, node[^1])
         result = loop
 
-      # allow variable defs/assignments inline without mounting
       of nnkLetSection, nnkVarSection, nnkConstSection, nnkAsgn, nnkDiscardStmt:
         result = node
 
@@ -409,8 +442,6 @@ template makeTag(name: untyped) =
     let createExpr =
       if tagName == "fragment":
         newCall(ident"jsCreateFragment")
-      elif tagName == "template":
-        newCall(ident"jsCreateTemplate")
       else:
         newCall(ident"createElement", newLit(tagName), newTree(nnkPrefix, ident"@", keyValues))
 
@@ -435,17 +466,17 @@ template makeTag(name: untyped) =
 
     result = statements
 
-makeTag `fragment`
-makeTag `d`
-makeTag `h1`
-makeTag `section`
-makeTag `button`
-makeTag `br`
-makeTag `ul`
-makeTag `li`
-makeTag `style`
 makeTag `b`
+makeTag `br`
+makeTag `button`
+makeTag `d`
+makeTag `fragment`
+makeTag `h1`
+makeTag `li`
 makeTag `p`
+makeTag `section`
+makeTag `style`
+makeTag `ul`
 
 when isMainModule:
   type
@@ -479,6 +510,9 @@ when isMainModule:
       title: string = ""            #	Tooltip / advisory text
       translate: string = ""        #	Whether to translate the element’s text (yes / no)
 
+    ComponentProps = object of Props
+      showSection: Signal[bool]
+
   let styleTag =
     style:
       """
@@ -497,7 +531,7 @@ when isMainModule:
   proc Component(props: Props, children: Node): Node =
     let count: Signal[int] = signal(0)
     let doubled: Signal[string] = derived(count, proc (x: int): string = $(x*2))
-
+    let showSection = signal(true)
     let isEven: Signal[bool] = derived(count, proc (x: int): bool =
       if x mod 2 == 0: true else: false
     )
@@ -521,9 +555,11 @@ when isMainModule:
       result = cleanup
     , [count])
 
-    discard effect(proc (): void =
-      echo "effect ran, doubled = ", doubled.get()
-    , [doubled])
+    discard effect(proc(): Unsub =
+      echo "signal mounted!"
+      result = proc() =
+        echo "cleanup ran"
+    , [showSection])
 
     let unsub = effect(proc (): Unsub =
       echo "one-time effect ran"
@@ -578,18 +614,27 @@ when isMainModule:
 
       children
 
+      br();
+
+      d:
+        button(onClick = proc(e: Event) =
+          showSection.set(not showSection.get())
+        ): "Toggle Section"
+
+        br(); br();
+
+        if showSection:
+          "Reactive section visible!"
+        else:
+          "Section hidden."
+
   let component: Node = Component(Props(
     title: "Nimbus Test Playground",
     class: "_div_container_a"
   )):
-    NestedComponent(Props(
-      id: "nested_component")
-    ):
-      fragment:
+    NestedComponent(Props(id: "nested_component")):
+      b:
         "This is a nested component"
-        ul(hidden=false):
-          for i in 1..3:
-            li: i
 
   discard jsAppendChild(document.head, styleTag)
   discard jsAppendChild(document.body, component)

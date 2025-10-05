@@ -29,3 +29,10 @@ let component: Node =
       onClick = proc (e: Event) = count.set(count.get() + 1)
     ): "Increment"
 ```
+
+## Project Status
+
+This project is still experimental. As such, implementation and examples are still under one
+file (nimbus.nim). TODO's are stored within the repo under `TODO.md` because everything is
+still being pushed directly to master. Once the code is deemed stable, issues and PR's will be
+the preferred method for development.
