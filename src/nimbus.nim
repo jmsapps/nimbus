@@ -115,8 +115,12 @@ proc runCleanups*(el: Node) =
 
     cleanupRegistry.del(k)
 
-# ------------------- JS DOM shims -------------------
+# ------------------- Constants -------------------
+const BOOLEAN_ATTRS: array[8, string] = [
+  "hidden", "disabled", "checked", "selected", "readonly", "multiple", "required", "open"
+]
 
+# ------------------- DOM shims -------------------
 proc jsCreateElement*(s: cstring): Node {.importjs: "document.createElement(#)".}
 proc jsCreateFragment*(): Node {.importjs: "document.createDocumentFragment()".}
 proc jsCreateTextNode*(s: cstring): Node {.importjs: "document.createTextNode(#)".}
@@ -206,11 +210,6 @@ template mountChildCase*[T](parent: Node, disc: Signal[T], body: untyped) =
     ))
   )
 
-  # ---- attribute helpers ----
-const BOOLEAN_ATTRS: array[8, string] = [
-  "hidden", "disabled", "checked", "selected", "readonly", "multiple", "required", "open"
-]
-
 proc isBooleanAttr(k: string): bool =
   let kl = k.toLowerAscii()
   for b in BOOLEAN_ATTRS:
@@ -257,7 +256,7 @@ proc setStringAttr(el: Node, k: string, v: string) =
         jsSetProp(el, propKey(kl), cstring(v))
       jsSetAttribute(el, cstring(kl), cstring(v))
 
-# ---- mountAttr overloads (static) ----
+# mountAttr overloads (static)
 proc mountAttr*(el: Node, k: string, v: string) = setStringAttr(el, k, v)
 proc mountAttr*(el: Node, k: string, v: cstring) = setStringAttr(el, k, $v)
 proc mountAttr*(el: Node, k: string, v: bool) = setBooleanAttr(el, k, v)
@@ -265,7 +264,7 @@ proc mountAttr*(el: Node, k: string, v: int) = setStringAttr(el, k, $v)
 proc mountAttr*(el: Node, k: string, v: float) = setStringAttr(el, k, $v)
 proc mountAttr*[T](el: Node, k: string, v: T) = setStringAttr(el, k, $v) # fallback
 
-# ---- mountAttr overloads (reactive) ----
+# mountAttr overloads (reactive)
 proc mountAttr*(el: Node, k: string, s: Signal[string]) =
   setStringAttr(el, k, s.get())
   let u = s.sub(proc(x: string) = setStringAttr(el, k, x))
@@ -315,7 +314,7 @@ template mountAttrCase*[T](el: Node, k: string, disc: Signal[T], body: untyped) 
     body
   )))
 
-# ------------------- Overloaded operators -------------------
+# Overloaded operators
 proc combine2*[A, B, R](a: Signal[A], b: Signal[B], fn: proc(x: A, y: B): R): Signal[R] =
   let res = signal(fn(a.get(), b.get()))
   discard a.sub(proc(x: A) = res.set(fn(x, b.get())))
@@ -352,7 +351,7 @@ proc `or`*(a: Signal[bool], b: bool): Signal[bool] =
 proc `not`*(a: Signal[bool]): Signal[bool] =
   derived(a, proc(x: bool): bool = not x)
 
-template makeTag(name: untyped) =
+template createHtmlTag(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")
     let node = genSym(nskLet, "node")
@@ -370,7 +369,6 @@ template makeTag(name: untyped) =
     # ----- helpers -----
     proc pushChild(node: NimNode) {.compileTime.} =
       children.add(node)
-
 
     proc handleAttr(keyRaw: string, value: NimNode) {.compileTime.} =
       var key = keyRaw
@@ -488,7 +486,7 @@ template makeTag(name: untyped) =
           (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
 
         let disc = node[0]
-        let sel  = ident"caseDisc"     # this matches the injected name above
+        let sel = ident"caseDisc" # this matches the injected name above
 
         let caseNode = newTree(nnkCaseStmt, sel)
 
@@ -573,18 +571,18 @@ template makeTag(name: untyped) =
 
     result = statements
 
-makeTag `b`
-makeTag `br`
-makeTag `button`
-makeTag `d`
-makeTag `fragment`
-makeTag `h1`
-makeTag `i`
-makeTag `li`
-makeTag `p`
-makeTag `section`
-makeTag `style`
-makeTag `ul`
+createHtmlTag `b`
+createHtmlTag `br`
+createHtmlTag `button`
+createHtmlTag `d`
+createHtmlTag `fragment`
+createHtmlTag `h1`
+createHtmlTag `i`
+createHtmlTag `li`
+createHtmlTag `p`
+createHtmlTag `section`
+createHtmlTag `style`
+createHtmlTag `ul`
 
 when isMainModule:
   type
@@ -676,13 +674,20 @@ when isMainModule:
 
     unsub()
 
-    d(id=case fruit:
-      of "apples", "cherries": "red"
-      of "bananas": "yellow"
-      else: "it depends",
+    d(id=
+        case fruit:
+        of "apples", "cherries": "red"
+        of "bananas": "yellow"
+        else: "it depends",
       class=props.class
     ):
-      h1(`data-even`=if isEven: "even" else: "odd"): props.title
+      h1(
+        `data-even`=
+        if (isEven and 1+1 == 2) or (1+1 == 4):
+          "even"
+        else:
+          "odd"
+      ): props.title
 
       "Count: "; count; br(); "Doubled: "; doubled; br(); br();
       button(
