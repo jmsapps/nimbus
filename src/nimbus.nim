@@ -89,14 +89,13 @@ var cleanupRegistry = initTable[int, seq[Unsub]]()
 
 proc nodeKey(n: Node): int
   {.importjs: """
-  (function(x){
-    if(x.__nid === undefined){
-      if(window.__nid === undefined) window.__nid = 0;
+  (function(x) {
+    if (x.__nid === undefined) {
+      if (window.__nid === undefined) window.__nid = 0;
       window.__nid = window.__nid + 1;
       x.__nid = window.__nid;
     }
-
-    return BigInt(x.__nid);
+    return x.__nid;
   })(#)
   """.}
 
@@ -133,63 +132,6 @@ proc jsSetProp*(el: Node, k: cstring, v: int) {.importjs: "#[#] = #".}
 proc jsSetProp*(el: Node, k: cstring, v: float) {.importjs: "#[#] = #".}
 
 # ------------------- DOM helpers -------------------
-proc createElement*(tag: string, props: openArray[(string, string)] = [], children: varargs[Node]): Node =
-  # TODO: move to constants folder
-  const BOOLEAN_ATTRS: array[8, string] = [
-    "hidden", "disabled", "checked", "selected", "readonly", "multiple", "required", "open"
-  ]
-  let element = jsCreateElement(cstring(tag))
-
-  proc propKey(attr: string): cstring =
-    case attr.toLowerAscii()
-    of "contenteditable": "contentEditable"
-    of "for", "htmlfor": "htmlFor"
-    of "maxlength": "maxLength"
-    of "readonly": "readOnly"
-    of "tabindex": "tabIndex"
-    else: cstring(attr)
-
-  proc toBoolStr(value: string): bool =
-    let v = value.toLowerAscii()
-    v != "" and v != "false" and v != "0" and v != "off" and v != "no"
-
-  for (key, value) in props:
-    let kLower = key.toLowerAscii()
-
-    if kLower in BOOLEAN_ATTRS:
-      let on: bool = toBoolStr(value)
-
-      jsSetProp(element, propKey(kLower), on)
-
-      if on:
-        jsSetAttribute(element, cstring(kLower), "")
-
-      else:
-        jsRemoveAttribute(element, cstring(kLower))
-
-    else:
-      if value.len == 0:
-        case kLower
-        of "class", "style":
-          discard
-        else:
-          jsSetProp(element, propKey(kLower), cstring(""))
-        jsRemoveAttribute(element, cstring(kLower))
-
-      else:
-        case kLower
-        of "class", "style":
-          discard
-        else:
-          jsSetProp(element, propKey(kLower), cstring(value))
-
-        jsSetAttribute(element, cstring(kLower), cstring(value))
-
-  for c in children:
-    discard jsAppendChild(element, c)
-
-  element
-
 proc toNode*(n: Node): Node = n
 proc toNode*(s: string): Node = jsCreateTextNode(cstring(s))
 proc toNode*(s: cstring): Node = jsCreateTextNode(s)
@@ -237,18 +179,18 @@ proc mountChild*[T](parent: Node, s: Signal[T]) =
   let unsub = s.sub(proc(v: T) = render(v))
   registerCleanup(startN, unsub)
 
-template mountIf*(parent: Node, cond: bool, thenN, elseN: untyped) =
+template mountChildIf*(parent: Node, cond: bool, thenN, elseN: untyped) =
   if cond:
     mountChild(parent, thenN)
   else:
     mountChild(parent, elseN)
 
-template mountIf*(parent: Node, cond: Signal[bool], thenN, elseN: untyped) =
+template mountChildIf*(parent: Node, cond: Signal[bool], thenN, elseN: untyped) =
   mountChild(parent,
     derived(cond, proc (v: bool): auto = (if v: thenN else: elseN))
   )
 
-template mountCase*[T](parent: Node, disc: T, body: untyped) =
+template mountChildCase*[T](parent: Node, disc: T, body: untyped) =
   block:
     let tmp {.inject.} = disc
     mountChild(parent, (block:
@@ -256,13 +198,122 @@ template mountCase*[T](parent: Node, disc: T, body: untyped) =
       body
     ))
 
-template mountCase*[T](parent: Node, disc: Signal[T], body: untyped) =
+template mountChildCase*[T](parent: Node, disc: Signal[T], body: untyped) =
   mountChild(parent,
     derived(disc, proc(v: T): auto = (block:
       let caseDisc {.inject.} = v
       body
     ))
   )
+
+  # ---- attribute helpers ----
+const BOOLEAN_ATTRS: array[8, string] = [
+  "hidden", "disabled", "checked", "selected", "readonly", "multiple", "required", "open"
+]
+
+proc isBooleanAttr(k: string): bool =
+  let kl = k.toLowerAscii()
+  for b in BOOLEAN_ATTRS:
+    if b == kl: return true
+  false
+
+proc propKey(attr: string): cstring =
+  case attr.toLowerAscii()
+  of "contenteditable": "contentEditable"
+  of "for", "htmlfor": "htmlFor"
+  of "maxlength": "maxLength"
+  of "readonly": "readOnly"
+  of "tabindex": "tabIndex"
+  else: cstring(attr)
+
+proc toBoolStr(value: string): bool =
+  let v = value.toLowerAscii()
+  v != "" and v != "false" and v != "0" and v != "off" and v != "no"
+
+proc setBooleanAttr(el: Node, k: string, on: bool) =
+  jsSetProp(el, propKey(k), on)
+  if on:
+    jsSetAttribute(el, cstring(k), "")
+  else:
+    jsRemoveAttribute(el, cstring(k))
+
+proc setStringAttr(el: Node, k: string, v: string) =
+  let kl = k.toLowerAscii()
+  if isBooleanAttr(kl):
+    setBooleanAttr(el, kl, toBoolStr(v))
+  else:
+    if v.len == 0:
+      case kl
+      of "class", "style":
+        discard
+      else:
+        jsSetProp(el, propKey(kl), cstring(""))
+      jsRemoveAttribute(el, cstring(kl))
+    else:
+      case kl
+      of "class", "style":
+        discard
+      else:
+        jsSetProp(el, propKey(kl), cstring(v))
+      jsSetAttribute(el, cstring(kl), cstring(v))
+
+# ---- mountAttr overloads (static) ----
+proc mountAttr*(el: Node, k: string, v: string) = setStringAttr(el, k, v)
+proc mountAttr*(el: Node, k: string, v: cstring) = setStringAttr(el, k, $v)
+proc mountAttr*(el: Node, k: string, v: bool) = setBooleanAttr(el, k, v)
+proc mountAttr*(el: Node, k: string, v: int) = setStringAttr(el, k, $v)
+proc mountAttr*(el: Node, k: string, v: float) = setStringAttr(el, k, $v)
+proc mountAttr*[T](el: Node, k: string, v: T) = setStringAttr(el, k, $v) # fallback
+
+# ---- mountAttr overloads (reactive) ----
+proc mountAttr*(el: Node, k: string, s: Signal[string]) =
+  setStringAttr(el, k, s.get())
+  let u = s.sub(proc(x: string) = setStringAttr(el, k, x))
+  registerCleanup(el, u)
+
+proc mountAttr*(el: Node, k: string, s: Signal[cstring]) =
+  setStringAttr(el, k, $s.get())
+  let u = s.sub(proc(x: cstring) = setStringAttr(el, k, $x))
+  registerCleanup(el, u)
+
+proc mountAttr*(el: Node, k: string, s: Signal[bool]) =
+  setBooleanAttr(el, k, s.get())
+  let u = s.sub(proc(x: bool) = setBooleanAttr(el, k, x))
+  registerCleanup(el, u)
+
+proc mountAttr*(el: Node, k: string, s: Signal[int]) =
+  setStringAttr(el, k, $s.get())
+  let u = s.sub(proc(x: int) = setStringAttr(el, k, $x))
+  registerCleanup(el, u)
+
+proc mountAttr*(el: Node, k: string, s: Signal[float]) =
+  setStringAttr(el, k, $s.get())
+  let u = s.sub(proc(x: float) = setStringAttr(el, k, $x))
+  registerCleanup(el, u)
+
+# generic reactive fallback
+proc mountAttr*[T](el: Node, k: string, s: Signal[T]) =
+  setStringAttr(el, k, $s.get())
+  let u = s.sub(proc(x: T) = setStringAttr(el, k, $x))
+  registerCleanup(el, u)
+
+template mountAttrIf*(el: Node, k: string, cond: bool, thenV, elseV: untyped) =
+  mountAttr(el, k, (if cond: thenV else: elseV))
+
+template mountAttrIf*(el: Node, k: string, cond: Signal[bool], thenV, elseV: untyped) =
+  mountAttr(el, k, derived(cond, proc (v: bool): auto = (if v: thenV else: elseV)))
+
+template mountAttrCase*[T](el: Node, k: string, disc: T, body: untyped) =
+  mountAttr(el, k, (block:
+    let caseDisc {.inject.} = disc
+    body
+  ))
+
+template mountAttrCase*[T](el: Node, k: string, disc: Signal[T], body: untyped) =
+  mountAttr(el, k, derived(disc, proc(v: T): auto = (block:
+    let caseDisc {.inject.} = v
+    body
+  )))
 
 # ------------------- Overloaded operators -------------------
 proc combine2*[A, B, R](a: Signal[A], b: Signal[B], fn: proc(x: A, y: B): R): Signal[R] =
@@ -304,6 +355,8 @@ proc `not`*(a: Signal[bool]): Signal[bool] =
 template makeTag(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")
+    let node = genSym(nskLet, "node")
+    let statements = newTree(nnkStmtListExpr)
 
     if tagName == "d":
       tagName = "div"
@@ -312,29 +365,81 @@ template makeTag(name: untyped) =
     var children: seq[NimNode] = @[]
     var eventNames: seq[string] = @[]
     var eventHandlers: seq[NimNode] = @[]
+    var attrSetters: seq[NimNode] = @[]
 
     # ----- helpers -----
     proc pushChild(node: NimNode) {.compileTime.} =
       children.add(node)
 
+
     proc handleAttr(keyRaw: string, value: NimNode) {.compileTime.} =
       var key = keyRaw
+
       if key == "className":
         key = "class"
 
       let keyLowered = key.toLowerAscii()
+      let kLit = newLit(key)
 
+      # 1) EVENTS (early return)
       if keyLowered.len >= 3 and keyLowered.startsWith("on"):
         let event = keyLowered[2..^1]
         eventNames.add(event)
         eventHandlers.add(value)
 
-      else:
-        let strValue = (
-          if value.kind in {nnkStrLit, nnkRStrLit}: value else: newCall(ident"$", value)
-        )
+        return
 
-        keyValues.add(newTree(nnkPar, newLit(key), strValue))
+      # 2) IF in attributes
+      if value.kind == nnkIfExpr or value.kind == nnkIfStmt:
+        var cond, thenExpr, elseExpr: NimNode
+        let head = value[0]
+
+        cond = head[0]
+        thenExpr = (if head[1].kind == nnkStmtList and head[1].len > 0: head[1][^1] else: head[1])
+        elseExpr = newLit("")
+
+        for br in value[1..^1]:
+          if br.kind in {nnkElse, nnkElseExpr}:
+            let body = br[0]
+            elseExpr = (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
+
+        attrSetters.add newCall(ident"mountAttrIf", node, kLit, cond, thenExpr, elseExpr)
+
+        return
+
+      # 3) CASE in attributes
+      if value.kind == nnkCaseStmt:
+        let disc = value[0]
+        let sel  = ident"caseDisc"
+        var caseNode = newTree(nnkCaseStmt, sel)
+
+        for br in value[1..^1]:
+          case br.kind
+          of nnkOfBranch:
+            var branch = newTree(nnkOfBranch)
+
+            for lit in br[0..^2]:
+              branch.add(lit)
+
+            let body = br[^1]
+            let expr = (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
+
+            branch.add(expr)
+            caseNode.add(branch)
+
+          of nnkElse:
+            let body = br[0]
+            let expr = (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
+            caseNode.add(newTree(nnkElse, expr))
+
+          else: discard
+
+        attrSetters.add newCall(ident"mountAttrCase", node, kLit, disc, caseNode)
+
+        return
+
+      # 4) Plain attribute: just pass the value through (let overloads decide)
+      attrSetters.add newCall(ident"mountAttr", node, kLit, value)
 
     proc lowerMount(parent, node: NimNode): NimNode {.compileTime.} =
       case node.kind
@@ -376,7 +481,7 @@ template makeTag(name: untyped) =
             if br.kind == nnkElse: elseExpr = toExpr(br[0])
 
           # Defer dispatch (bool vs Signal[bool]) to overload resolution
-          result = newCall(ident"mountIf", parent, cond, thenExpr, elseExpr)
+          result = newCall(ident"mountChildIf", parent, cond, thenExpr, elseExpr)
 
       of nnkCaseStmt:
         proc toExpr(body: NimNode): NimNode {.compileTime.} =
@@ -401,7 +506,7 @@ template makeTag(name: untyped) =
 
           else: discard
 
-        result = newCall(ident"mountCase", parent, disc, caseNode)
+        result = newCall(ident"mountChildCase", parent, disc, caseNode)
 
       of nnkForStmt, nnkWhileStmt:
         let loop = copy node
@@ -418,7 +523,8 @@ template makeTag(name: untyped) =
     for a in args:
       case a.kind
       of nnkStmtList, nnkStmtListExpr:
-        for it in a: pushChild(it)
+        for it in a:
+          pushChild(it)
 
       of nnkExprEqExpr:
         handleAttr($a[0], a[1])
@@ -431,21 +537,22 @@ template makeTag(name: untyped) =
           pushChild(a)
 
       of nnkIdent:
-        keyValues.add(newTree(nnkPar, newLit($a), newLit("true")))
+        attrSetters.add newCall(ident"mountAttr", node, newLit($a), newLit("true"))
 
       else:
         pushChild(a)
-
-    let node = genSym(nskLet, "node")
-    let statements = newTree(nnkStmtListExpr)
 
     let createExpr =
       if tagName == "fragment":
         newCall(ident"jsCreateFragment")
       else:
-        newCall(ident"createElement", newLit(tagName), newTree(nnkPrefix, ident"@", keyValues))
+        newCall(ident"jsCreateElement", newCall(ident"cstring", newLit(tagName)))
 
     statements.add(newLetStmt(node, createExpr))
+
+    # set attributes
+    for s in attrSetters:
+      statements.add(s)
 
     # lower mount children
     for child in children:
@@ -472,6 +579,7 @@ makeTag `button`
 makeTag `d`
 makeTag `fragment`
 makeTag `h1`
+makeTag `i`
 makeTag `li`
 makeTag `p`
 makeTag `section`
@@ -568,8 +676,13 @@ when isMainModule:
 
     unsub()
 
-    d(id="hero", class=props.class):
-      h1: props.title
+    d(id=case fruit:
+      of "apples", "cherries": "red"
+      of "bananas": "yellow"
+      else: "it depends",
+      class=props.class
+    ):
+      h1(`data-even`=if isEven: "even" else: "odd"): props.title
 
       "Count: "; count; br(); "Doubled: "; doubled; br(); br();
       button(
@@ -581,13 +694,6 @@ when isMainModule:
         li: derived(count, proc (x: int): string = $(x*2 + 1))
         li: derived(count, proc (x: int): string = $(x*2 + 2))
         li: derived(count, proc (x: int): string = $(x*2 + 3))
-
-      if isEven:
-        "Count is even"
-      else:
-        "Count is odd"
-
-      br();br();
 
       "Jebbrel wants to eat "
       case fruit:
@@ -603,6 +709,20 @@ when isMainModule:
         ""
 
       br();br();
+
+      if isEven:
+        "Count is even"
+      else:
+        "Count is odd"
+
+      " (Almanda becomes shy when Count is odd)"
+
+      br();br()
+
+      d(hidden=(derived(isEven, proc(x: bool): bool = not x))):
+        "Hi, I'm Almanda!"
+
+        br();br();
 
       "(fruit == \"apples\" and not isEven) or (fruit == \"bananas\"): "
       if (fruit == "apples" and not isEven) or (fruit == "bananas"):
