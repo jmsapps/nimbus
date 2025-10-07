@@ -32,7 +32,7 @@ Features are grouped by priority and scope so we can focus on the “core primit
   - Implement keyed reconciliation: only update changed elements
   - Crucial for scaling to large lists
 
-- [ ] **Form element bindings**
+- [x] **Form element bindings**
 
   - `<input value={signal}>` + auto `onInput` → update signal
   - Two-way sync between DOM and state

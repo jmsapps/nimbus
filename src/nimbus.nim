@@ -130,6 +130,8 @@ proc jsInsertBefore*(p: Node, newChild: Node, refChild: Node): Node {.importjs: 
 proc jsSetAttribute*(el: Node, k: cstring, v: cstring) {.importjs: "#.setAttribute(#,#)".}
 proc jsAddEventListener*(el: Node, t: cstring, cb: proc (e: Event)) {.importjs: "#.addEventListener(#,#)".}
 proc jsRemoveAttribute*(el: Node, k: cstring) {.importjs: "#.removeAttribute(#)".}
+proc jsGetProp*(el: Node, k: cstring): cstring {.importjs: "String(#[#])".}
+proc jsGetBoolProp*(el: Node, k: cstring): bool {.importjs: "Boolean(#[#])".}
 proc jsSetProp*(el: Node, k: cstring, v: bool) {.importjs: "#[#] = #".}
 proc jsSetProp*(el: Node, k: cstring, v: cstring) {.importjs: "#[#] = #".}
 proc jsSetProp*(el: Node, k: cstring, v: int) {.importjs: "#[#] = #".}
@@ -236,25 +238,66 @@ proc setBooleanAttr(el: Node, k: string, on: bool) =
   else:
     jsRemoveAttribute(el, cstring(k))
 
-proc setStringAttr(el: Node, k: string, v: string) =
-  let kl = k.toLowerAscii()
-  if isBooleanAttr(kl):
-    setBooleanAttr(el, kl, toBoolStr(v))
+proc setStringAttr(el: Node, key: string, value: string) =
+  let keyLowered = key.toLowerAscii()
+  case keyLowered
+  of "value":
+    jsSetProp(el, propKey(keyLowered), cstring(value))
+  of "checked":
+    jsSetProp(el, propKey(keyLowered), toBoolStr(value))
+
   else:
-    if v.len == 0:
-      case kl
-      of "class", "style":
-        discard
-      else:
-        jsSetProp(el, propKey(kl), cstring(""))
-      jsRemoveAttribute(el, cstring(kl))
+    if isBooleanAttr(keyLowered):
+      setBooleanAttr(el, keyLowered, toBoolStr(value))
     else:
-      case kl
-      of "class", "style":
-        discard
+      if value.len == 0:
+        case keyLowered
+        of "class", "style":
+          discard
+        else:
+          jsSetProp(el, propKey(keyLowered), cstring(""))
+        jsRemoveAttribute(el, cstring(keyLowered))
       else:
-        jsSetProp(el, propKey(kl), cstring(v))
-      jsSetAttribute(el, cstring(kl), cstring(v))
+        case keyLowered
+        of "class", "style":
+          discard
+        else:
+          jsSetProp(el, propKey(keyLowered), cstring(value))
+        jsSetAttribute(el, cstring(keyLowered), cstring(value))
+
+# ----- value (text-like) -----
+proc bindValue*(el: Node, v: string) = setStringAttr(el, "value", v)
+proc bindValue*(el: Node, v: cstring) = setStringAttr(el, "value", $v)
+proc bindValue*(el: Node, v: int) = setStringAttr(el, "value", $v)
+proc bindValue*(el: Node, v: float) = setStringAttr(el, "value", $v)
+
+proc bindValue*(el: Node, s: Signal[string]) =
+  setStringAttr(el, "value", s.get())
+  let u = s.sub(proc(x: string) = jsSetProp(el, cstring("value"), cstring(x)))
+  registerCleanup(el, u)
+  let onInput = proc (e: Event) = s.set($jsGetProp(el, cstring("value")))
+  jsAddEventListener(el, cstring("input"), onInput)
+  jsAddEventListener(el, cstring("change"), onInput)
+
+proc bindValue*(el: Node, s: Signal[cstring]) =
+  setStringAttr(el, "value", $s.get())
+  let u = s.sub(proc(x: cstring) = jsSetProp(el, cstring("value"), x))
+  registerCleanup(el, u)
+  let onInput = proc (e: Event) = s.set(jsGetProp(el, cstring("value")))
+  jsAddEventListener(el, cstring("input"), onInput)
+  jsAddEventListener(el, cstring("change"), onInput)
+
+# ----- checked (checkbox/radio) -----
+proc bindChecked*(el: Node, v: bool) = setBooleanAttr(el, "checked", v)
+
+proc bindChecked*(el: Node, s: Signal[bool]) =
+  setBooleanAttr(el, "checked", s.get())
+  let u = s.sub(proc(x: bool) = jsSetProp(el, cstring("checked"), x))
+  registerCleanup(el, u)
+  jsAddEventListener(el, cstring("change"), proc (e: Event) =
+    s.set(jsGetBoolProp(el, cstring("checked")))
+  )
+
 
 # mountAttr overloads (static)
 proc mountAttr*(el: Node, k: string, v: string) = setStringAttr(el, k, v)
@@ -387,6 +430,17 @@ template createHtmlTag(name: untyped) =
 
         return
 
+      # inside handleAttr, right after the events branch:
+      if keyLowered == "value":
+        attrSetters.add newCall(ident"bindValue", node, value)
+
+        return
+
+      elif keyLowered == "checked":
+        attrSetters.add newCall(ident"bindChecked", node, value)
+
+        return
+
       # 2) IF in attributes
       if value.kind == nnkIfExpr or value.kind == nnkIfStmt:
         var cond, thenExpr, elseExpr: NimNode
@@ -432,12 +486,11 @@ template createHtmlTag(name: untyped) =
 
           else: discard
 
-        attrSetters.add newCall(ident"mountAttrCase", node, kLit, disc, caseNode)
+        attrSetters.add(newCall(ident"mountAttrCase", node, kLit, disc, caseNode))
 
         return
 
-      # 4) Plain attribute: just pass the value through (let overloads decide)
-      attrSetters.add newCall(ident"mountAttr", node, kLit, value)
+      attrSetters.add(newCall(ident"mountAttr", node, kLit, value))
 
     proc lowerMount(parent, node: NimNode): NimNode {.compileTime.} =
       case node.kind
@@ -575,9 +628,12 @@ createHtmlTag `b`
 createHtmlTag `br`
 createHtmlTag `button`
 createHtmlTag `d`
+createHtmlTag `form`
 createHtmlTag `fragment`
 createHtmlTag `h1`
 createHtmlTag `i`
+createHtmlTag `input`
+createHtmlTag `label`
 createHtmlTag `li`
 createHtmlTag `p`
 createHtmlTag `section`
@@ -641,6 +697,8 @@ when isMainModule:
     let isEven: Signal[bool] = derived(count, proc (x: int): bool =
       if x mod 2 == 0: true else: false
     )
+    let formValue: Signal[cstring] = signal(cstring(""))
+    let accepted: Signal[bool] = signal(false)
 
     let fruit: Signal[string] = signal("apple")
     let fruitIndex: Signal[int] = signal(0)
@@ -720,7 +778,7 @@ when isMainModule:
       else:
         "Count is odd"
 
-      " (Almanda becomes shy when Count is odd)"
+      i: " (Almanda becomes shy when Count is odd)"
 
       br();br()
 
@@ -752,6 +810,36 @@ when isMainModule:
           "Reactive section visible!"
         else:
           "Section hidden."
+
+      br();br();
+
+      form(onsubmit = proc (e: Event) =
+          e.preventDefault()
+          echo "Submitted: ", formValue.get()
+        ):
+        label(`for`="firstname"): "First name:"; br()
+        input(
+          id="firstname",
+          `type`="text",
+          name="firstname",
+          value=formValue
+        ); br()
+        button(`type`="submit", disabled=formValue == "", style="margin-top: 8px"): "Submit"
+
+      br();br();
+
+      form(onsubmit = proc (e: Event) =
+          e.preventDefault()
+          echo "Accepted? ", accepted.get()
+        ):
+        label(`for`="terms"): "Accept terms and conditions"; br()
+        input(
+          id="terms",
+          `type`="checkbox",
+          name="terms",
+          checked=accepted
+        ); br()
+        button(`type`="submit", disabled=not accepted, style="margin-top: 8px"): "Submit"
 
   let component: Node = Component(Props(
     title: "Nimbus Test Playground",
