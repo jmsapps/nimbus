@@ -298,7 +298,6 @@ proc bindChecked*(el: Node, s: Signal[bool]) =
     s.set(jsGetBoolProp(el, cstring("checked")))
   )
 
-
 # mountAttr overloads (static)
 proc mountAttr*(el: Node, k: string, v: string) = setStringAttr(el, k, v)
 proc mountAttr*(el: Node, k: string, v: cstring) = setStringAttr(el, k, $v)
@@ -357,7 +356,51 @@ template mountAttrCase*[T](el: Node, k: string, disc: Signal[T], body: untyped) 
     body
   )))
 
-# Overloaded operators
+iterator toSeqIter[T](it: iterator(): T): seq[T] =
+  var result: seq[T]
+  for v in it(): result.add(v)
+  return result
+
+template toSeqAuto(x): untyped =
+  when x is seq: x
+  elif x is Signal[seq]: x
+  else: toSeqIter(() => x)
+
+# region-based list renderer (non-reactive)
+proc mountFor*[T](parent: Node, items: seq[T], render: proc (it: T): Node) =
+  let startN = jsCreateTextNode(cstring(""))
+  let endN   = jsCreateTextNode(cstring(""))
+  discard jsAppendChild(parent, startN)
+  discard jsAppendChild(parent, endN)
+
+  proc rerender(xs: seq[T]) =
+    removeBetween(parent, startN, endN)
+    let frag = jsCreateFragment()
+    for it in xs:
+      discard jsAppendChild(frag, render(it))
+    discard jsInsertBefore(parent, frag, endN)
+
+  rerender(items)
+
+# reactive version (auto re-render on .set)
+proc mountFor*[T](parent: Node, items: Signal[seq[T]], render: proc (it: T): Node) =
+  let startN = jsCreateTextNode(cstring(""))
+  let endN   = jsCreateTextNode(cstring(""))
+  discard jsAppendChild(parent, startN)
+  discard jsAppendChild(parent, endN)
+
+  proc rerender(xs: seq[T]) =
+    removeBetween(parent, startN, endN)
+    let frag = jsCreateFragment()
+    for it in xs:
+      discard jsAppendChild(frag, render(it))
+    discard jsInsertBefore(parent, frag, endN)
+
+  rerender(items.get())
+  let unsub = items.sub(proc (xs: seq[T]) = rerender(xs))
+  registerCleanup(startN, unsub)
+
+# ------------------- Operator overloads -------------------
 proc combine2*[A, B, R](a: Signal[A], b: Signal[B], fn: proc(x: A, y: B): R): Signal[R] =
   let res = signal(fn(a.get(), b.get()))
   discard a.sub(proc(x: A) = res.set(fn(x, b.get())))
@@ -455,7 +498,7 @@ template createHtmlTag(name: untyped) =
             let body = br[0]
             elseExpr = (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
 
-        attrSetters.add newCall(ident"mountAttrIf", node, kLit, cond, thenExpr, elseExpr)
+        attrSetters.add(newCall(ident"mountAttrIf", node, kLit, cond, thenExpr, elseExpr))
 
         return
 
@@ -559,8 +602,45 @@ template createHtmlTag(name: untyped) =
 
         result = newCall(ident"mountChildCase", parent, disc, caseNode)
 
-      of nnkForStmt, nnkWhileStmt:
-        let loop = copy node
+      of nnkForStmt:
+        # for <pat> in <iter>: <body>
+        let iterPat = node[0]
+        var iterExpr = node[1]
+        let bodyNode = node[^1]
+
+        let renderFn = genSym(nskProc, "render")
+        let itSym    = genSym(nskParam, "it")
+        let frag     = genSym(nskLet,  "frag")
+
+        if iterPat.kind == nnkTupleConstr and iterPat.len == 2:
+          iterExpr = newDotExpr(iterExpr, ident"pairs")
+
+        # IMPORTANT: newProc expects a seq of params, not nnkFormalParams.
+        let renderProc = newProc(
+          renderFn,
+          params = [
+            ident"Node",                         # return type
+            newIdentDefs(itSym, ident"auto")     # (it: auto)
+          ],
+          body = newTree(nnkStmtList,
+            newLetStmt(frag, newCall(ident"jsCreateFragment")),
+            # Bind pattern: e.g., `let (a,b) = it`
+            newTree(nnkLetSection,
+              newTree(nnkIdentDefs, iterPat, newEmptyNode(), itSym)
+            ),
+            lowerMount(frag, bodyNode),
+            frag
+          )
+        )
+
+        # Dispatches to the right overload (seq vs Signal[seq])
+        result = newTree(nnkStmtList,
+          renderProc,
+          newCall(ident"mountFor", parent, newCall(ident"toSeqAuto", iterExpr), renderFn)
+        )
+
+      of nnkWhileStmt:
+        let loop = copy(node)
         loop[^1] = lowerMount(parent, node[^1])
         result = loop
 
@@ -672,8 +752,9 @@ when isMainModule:
       title: string = ""            #	Tooltip / advisory text
       translate: string = ""        #	Whether to translate the element’s text (yes / no)
 
-    ComponentProps = object of Props
-      showSection: Signal[bool]
+    Person = object
+      firstname: string
+      likes: seq[string]
 
   let styleTag =
     style:
@@ -699,6 +780,7 @@ when isMainModule:
     )
     let formValue: Signal[cstring] = signal(cstring(""))
     let accepted: Signal[bool] = signal(false)
+    let people: Signal[seq[Person]] = signal(@[Person(firstname: "Jeff", likes: @["pizza"])])
 
     let fruit: Signal[string] = signal("apple")
     let fruitIndex: Signal[int] = signal(0)
@@ -750,7 +832,10 @@ when isMainModule:
       "Count: "; count; br(); "Doubled: "; doubled; br(); br();
       button(
         class="btn",
-        onClick = proc (e: Event) = count.set(count.get() + 1)
+        onClick = proc (e: Event) =
+          count.set(count.get() + 1)
+          people.set(@[Person(firstname: "Amanda", likes: @["pizza"])])
+          echo people.get()
       ): "Increment"
 
       ul:
@@ -840,6 +925,9 @@ when isMainModule:
           checked=accepted
         ); br()
         button(`type`="submit", disabled=not accepted, style="margin-top: 8px"): "Submit"
+
+      for person in people:
+        person.firstname; " likes "; person.likes[0]
 
   let component: Node = Component(Props(
     title: "Nimbus Test Playground",

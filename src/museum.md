@@ -65,3 +65,16 @@ proc createElement*(tag: string, props: openArray[(string, string)] = [], childr
 
   element
 ```
+
+```nim
+# Interesting overloads for iterators
+iterator items*[T](s: Signal[seq[T]]): lent T =
+  for it in s.get():
+    yield it
+
+iterator pairs*[T](s: Signal[seq[T]]): (int, lent T) =
+  var i = 0
+  for it in s.get():
+    yield (i, it)
+    inc i
+```
