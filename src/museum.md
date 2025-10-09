@@ -78,3 +78,13 @@ iterator pairs*[T](s: Signal[seq[T]]): (int, lent T) =
     yield (i, it)
     inc i
 ```
+
+```
+# Interesting way to debug, by passing the arg like `nim js -d:loopDebug nimbus.nim`
+when defined(loopDebug):
+  echo "=== LOWERED FOR ==="
+  echo treeRepr(newTree(nnkStmtList,
+    renderProc,
+    newCall(ident"mountFor", parent, newCall(ident"toSeqAuto", iterExpr), renderFn)
+  ))
+```

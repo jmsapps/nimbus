@@ -356,15 +356,22 @@ template mountAttrCase*[T](el: Node, k: string, disc: Signal[T], body: untyped) 
     body
   )))
 
-iterator toSeqIter[T](it: iterator(): T): seq[T] =
-  var result: seq[T]
-  for v in it(): result.add(v)
-  return result
+template guardSeq(x): untyped =
+  when x is seq or x is Signal[seq]:
+    x
+  else:
+    {.error: "mountFor expects seq[T] or Signal[seq[T]]".}
 
-template toSeqAuto(x): untyped =
-  when x is seq: x
-  elif x is Signal[seq]: x
-  else: toSeqIter(() => x)
+proc toIndexSeq*[T](xs: seq[T]): seq[(int, T)] =
+  result = @[]
+  for i, v in xs: result.add((i, v))
+
+proc toIndexSeq*[T](xs: Signal[seq[T]]): Signal[seq[(int, T)]] =
+  derived(xs, proc(s: seq[T]): seq[(int, T)] =
+    var outSeq: seq[(int, T)] = @[]
+    for i, v in s: outSeq.add((i, v))
+    outSeq
+  )
 
 # region-based list renderer (non-reactive)
 proc mountFor*[T](parent: Node, items: seq[T], render: proc (it: T): Node) =
@@ -603,40 +610,53 @@ template createHtmlTag(name: untyped) =
         result = newCall(ident"mountChildCase", parent, disc, caseNode)
 
       of nnkForStmt:
-        # for <pat> in <iter>: <body>
-        let iterPat = node[0]
-        var iterExpr = node[1]
-        let bodyNode = node[^1]
+        # ForStmt: <name(s)> ... <iterExpr> <StmtList>
+        var bodyIdx = -1
+
+        for i in countdown(node.len - 1, 0):
+          if node[i].kind == nnkStmtList:
+            bodyIdx = i
+            break
+
+        let bodyNode = node[bodyIdx]
+        var iterExpr = node[bodyIdx - 1]
+
+        var names: seq[NimNode] = @[]
+        for i in 0 ..< bodyIdx - 1:
+          names.add(node[i])
 
         let renderFn = genSym(nskProc, "render")
-        let itSym    = genSym(nskParam, "it")
-        let frag     = genSym(nskLet,  "frag")
+        let itSym = genSym(nskParam, "it")
+        let frag = genSym(nskLet,  "frag")
 
-        if iterPat.kind == nnkTupleConstr and iterPat.len == 2:
-          iterExpr = newDotExpr(iterExpr, ident"pairs")
+        # build binding defs
+        var bindDefs: NimNode
+        if names.len == 1:
+          # let <name> = it
+          bindDefs = newTree(nnkIdentDefs, names[0], newEmptyNode(), itSym)
+        else:
+          # enumerate: convert iterable to seq[(int,T)] or Signal[seq[(int,T)]]
+          iterExpr = newCall(ident"toIndexSeq", iterExpr)
+          # (i, x) = it    via VarTuple
+          bindDefs = newTree(nnkVarTuple)
+          for nm in names: bindDefs.add(nm)
+          bindDefs.add(newEmptyNode()) # type slot
+          bindDefs.add(itSym)          # rhs
 
-        # IMPORTANT: newProc expects a seq of params, not nnkFormalParams.
         let renderProc = newProc(
           renderFn,
-          params = [
-            ident"Node",                         # return type
-            newIdentDefs(itSym, ident"auto")     # (it: auto)
-          ],
+          params = [ident"Node", newIdentDefs(itSym, ident"auto")],
           body = newTree(nnkStmtList,
             newLetStmt(frag, newCall(ident"jsCreateFragment")),
-            # Bind pattern: e.g., `let (a,b) = it`
-            newTree(nnkLetSection,
-              newTree(nnkIdentDefs, iterPat, newEmptyNode(), itSym)
-            ),
+            newTree(nnkLetSection, bindDefs),
             lowerMount(frag, bodyNode),
             frag
           )
         )
 
-        # Dispatches to the right overload (seq vs Signal[seq])
         result = newTree(nnkStmtList,
           renderProc,
-          newCall(ident"mountFor", parent, newCall(ident"toSeqAuto", iterExpr), renderFn)
+          newCall(ident"mountFor", parent, newCall(ident"guardSeq", iterExpr), renderFn)
         )
 
       of nnkWhileStmt:
@@ -780,7 +800,10 @@ when isMainModule:
     )
     let formValue: Signal[cstring] = signal(cstring(""))
     let accepted: Signal[bool] = signal(false)
-    let people: Signal[seq[Person]] = signal(@[Person(firstname: "Jeff", likes: @["pizza"])])
+    let people: Signal[seq[Person]] = signal(@[
+      Person(firstname: "Axel", likes: @["pizza"]),
+      Person(firstname: "Synn", likes: @["pasta"]),
+    ])
 
     let fruit: Signal[string] = signal("apple")
     let fruitIndex: Signal[int] = signal(0)
@@ -834,8 +857,6 @@ when isMainModule:
         class="btn",
         onClick = proc (e: Event) =
           count.set(count.get() + 1)
-          people.set(@[Person(firstname: "Amanda", likes: @["pizza"])])
-          echo people.get()
       ): "Increment"
 
       ul:
@@ -926,8 +947,9 @@ when isMainModule:
         ); br()
         button(`type`="submit", disabled=not accepted, style="margin-top: 8px"): "Submit"
 
-      for person in people:
-        person.firstname; " likes "; person.likes[0]
+      for i, person in people:
+        li:
+          i; " "; person.firstname; " likes "; person.likes[0]
 
   let component: Node = Component(Props(
     title: "Nimbus Test Playground",
