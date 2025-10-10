@@ -138,6 +138,7 @@ proc jsSetProp*(el: Node, k: cstring, v: int) {.importjs: "#[#] = #".}
 proc jsSetProp*(el: Node, k: cstring, v: float) {.importjs: "#[#] = #".}
 
 # ------------------- DOM helpers -------------------
+# Child mount utils
 proc toNode*(n: Node): Node = n
 proc toNode*(s: string): Node = jsCreateTextNode(cstring(s))
 proc toNode*(s: cstring): Node = jsCreateTextNode(s)
@@ -153,6 +154,24 @@ proc removeBetween*(parent: Node, startN, endN: Node) =
     discard jsRemoveChild(parent, n)
     n = nxt
 
+template guardSeq(x): untyped =
+  when x is seq or x is Signal[seq]:
+    x
+  else:
+    {.error: "mountChildFor expects seq[T] or Signal[seq[T]]".}
+
+proc toIndexSeq*[T](xs: seq[T]): seq[(int, T)] =
+  result = @[]
+  for i, v in xs: result.add((i, v))
+
+proc toIndexSeq*[T](xs: Signal[seq[T]]): Signal[seq[(int, T)]] =
+  derived(xs, proc(s: seq[T]): seq[(int, T)] =
+    var outSeq: seq[(int, T)] = @[]
+    for i, v in s: outSeq.add((i, v))
+    outSeq
+  )
+
+# Child mounts
 proc mountChild*(parent: Node, child: Node) =
   discard jsAppendChild(parent, child)
 
@@ -212,6 +231,39 @@ template mountChildCase*[T](parent: Node, disc: Signal[T], body: untyped) =
     ))
   )
 
+proc mountChildFor*[T](parent: Node, items: seq[T], render: proc (it: T): Node) =
+  let startN = jsCreateTextNode(cstring(""))
+  let endN   = jsCreateTextNode(cstring(""))
+  discard jsAppendChild(parent, startN)
+  discard jsAppendChild(parent, endN)
+
+  proc rerender(xs: seq[T]) =
+    removeBetween(parent, startN, endN)
+    let frag = jsCreateFragment()
+    for it in xs:
+      discard jsAppendChild(frag, render(it))
+    discard jsInsertBefore(parent, frag, endN)
+
+  rerender(items)
+
+proc mountChildFor*[T](parent: Node, items: Signal[seq[T]], render: proc (it: T): Node) =
+  let startN = jsCreateTextNode(cstring(""))
+  let endN   = jsCreateTextNode(cstring(""))
+  discard jsAppendChild(parent, startN)
+  discard jsAppendChild(parent, endN)
+
+  proc rerender(xs: seq[T]) =
+    removeBetween(parent, startN, endN)
+    let frag = jsCreateFragment()
+    for it in xs:
+      discard jsAppendChild(frag, render(it))
+    discard jsInsertBefore(parent, frag, endN)
+
+  rerender(items.get())
+  let unsub = items.sub(proc (xs: seq[T]) = rerender(xs))
+  registerCleanup(startN, unsub)
+
+# Attribute mount utils
 proc isBooleanAttr(k: string): bool =
   let kl = k.toLowerAscii()
   for b in BOOLEAN_ATTRS:
@@ -265,7 +317,6 @@ proc setStringAttr(el: Node, key: string, value: string) =
           jsSetProp(el, propKey(keyLowered), cstring(value))
         jsSetAttribute(el, cstring(keyLowered), cstring(value))
 
-# ----- value (text-like) -----
 proc bindValue*(el: Node, v: string) = setStringAttr(el, "value", v)
 proc bindValue*(el: Node, v: cstring) = setStringAttr(el, "value", $v)
 proc bindValue*(el: Node, v: int) = setStringAttr(el, "value", $v)
@@ -298,7 +349,7 @@ proc bindChecked*(el: Node, s: Signal[bool]) =
     s.set(jsGetBoolProp(el, cstring("checked")))
   )
 
-# mountAttr overloads (static)
+# Attribute mounts
 proc mountAttr*(el: Node, k: string, v: string) = setStringAttr(el, k, v)
 proc mountAttr*(el: Node, k: string, v: cstring) = setStringAttr(el, k, $v)
 proc mountAttr*(el: Node, k: string, v: bool) = setBooleanAttr(el, k, v)
@@ -306,7 +357,6 @@ proc mountAttr*(el: Node, k: string, v: int) = setStringAttr(el, k, $v)
 proc mountAttr*(el: Node, k: string, v: float) = setStringAttr(el, k, $v)
 proc mountAttr*[T](el: Node, k: string, v: T) = setStringAttr(el, k, $v) # fallback
 
-# mountAttr overloads (reactive)
 proc mountAttr*(el: Node, k: string, s: Signal[string]) =
   setStringAttr(el, k, s.get())
   let u = s.sub(proc(x: string) = setStringAttr(el, k, x))
@@ -332,7 +382,6 @@ proc mountAttr*(el: Node, k: string, s: Signal[float]) =
   let u = s.sub(proc(x: float) = setStringAttr(el, k, $x))
   registerCleanup(el, u)
 
-# generic reactive fallback
 proc mountAttr*[T](el: Node, k: string, s: Signal[T]) =
   setStringAttr(el, k, $s.get())
   let u = s.sub(proc(x: T) = setStringAttr(el, k, $x))
@@ -355,58 +404,6 @@ template mountAttrCase*[T](el: Node, k: string, disc: Signal[T], body: untyped) 
     let caseDisc {.inject.} = v
     body
   )))
-
-template guardSeq(x): untyped =
-  when x is seq or x is Signal[seq]:
-    x
-  else:
-    {.error: "mountFor expects seq[T] or Signal[seq[T]]".}
-
-proc toIndexSeq*[T](xs: seq[T]): seq[(int, T)] =
-  result = @[]
-  for i, v in xs: result.add((i, v))
-
-proc toIndexSeq*[T](xs: Signal[seq[T]]): Signal[seq[(int, T)]] =
-  derived(xs, proc(s: seq[T]): seq[(int, T)] =
-    var outSeq: seq[(int, T)] = @[]
-    for i, v in s: outSeq.add((i, v))
-    outSeq
-  )
-
-# region-based list renderer (non-reactive)
-proc mountFor*[T](parent: Node, items: seq[T], render: proc (it: T): Node) =
-  let startN = jsCreateTextNode(cstring(""))
-  let endN   = jsCreateTextNode(cstring(""))
-  discard jsAppendChild(parent, startN)
-  discard jsAppendChild(parent, endN)
-
-  proc rerender(xs: seq[T]) =
-    removeBetween(parent, startN, endN)
-    let frag = jsCreateFragment()
-    for it in xs:
-      discard jsAppendChild(frag, render(it))
-    discard jsInsertBefore(parent, frag, endN)
-
-  rerender(items)
-
-# reactive version (auto re-render on .set)
-proc mountFor*[T](parent: Node, items: Signal[seq[T]], render: proc (it: T): Node) =
-  let startN = jsCreateTextNode(cstring(""))
-  let endN   = jsCreateTextNode(cstring(""))
-  discard jsAppendChild(parent, startN)
-  discard jsAppendChild(parent, endN)
-
-  proc rerender(xs: seq[T]) =
-    removeBetween(parent, startN, endN)
-    let frag = jsCreateFragment()
-    for it in xs:
-      discard jsAppendChild(frag, render(it))
-    discard jsInsertBefore(parent, frag, endN)
-
-  rerender(items.get())
-  let unsub = items.sub(proc (xs: seq[T]) = rerender(xs))
-  registerCleanup(startN, unsub)
-
 # ------------------- Operator overloads -------------------
 proc combine2*[A, B, R](a: Signal[A], b: Signal[B], fn: proc(x: A, y: B): R): Signal[R] =
   let res = signal(fn(a.get(), b.get()))
@@ -453,7 +450,7 @@ proc `&`*[T](a: Signal[T], b: string): Signal[string] =
 proc `&`*[A, B](a: Signal[A], b: Signal[B]): Signal[string] =
   combine2(a, b, proc(x: A, y: B): string = $x & $y)
 
-template createHtmlTag(name: untyped) =
+template createHtmlElement(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")
     let node = genSym(nskLet, "node")
@@ -472,7 +469,7 @@ template createHtmlTag(name: untyped) =
     proc pushChild(node: NimNode) {.compileTime.} =
       children.add(node)
 
-    proc handleAttr(keyRaw: string, value: NimNode) {.compileTime.} =
+    proc lowerMountAttributes(keyRaw: string, value: NimNode) {.compileTime.} =
       var key = keyRaw
 
       if key == "className":
@@ -489,7 +486,7 @@ template createHtmlTag(name: untyped) =
 
         return
 
-      # inside handleAttr, right after the events branch:
+      # inside lowerMountAttributes, right after the events branch:
       if keyLowered == "value":
         attrSetters.add newCall(ident"bindValue", node, value)
 
@@ -551,12 +548,12 @@ template createHtmlTag(name: untyped) =
 
       attrSetters.add(newCall(ident"mountAttr", node, kLit, value))
 
-    proc lowerMount(parent, node: NimNode): NimNode {.compileTime.} =
+    proc lowerMountChildren(parent, node: NimNode): NimNode {.compileTime.} =
       case node.kind
       of nnkStmtList, nnkStmtListExpr, nnkBlockStmt:
         result = newTree(nnkStmtList)
         for it in node:
-          result.add(lowerMount(parent, it))
+          result.add(lowerMountChildren(parent, it))
 
       of nnkIfStmt:
         proc toExpr(body: NimNode): NimNode {.compileTime.} =
@@ -574,9 +571,9 @@ template createHtmlTag(name: untyped) =
           for br in node:
             case br.kind
             of nnkElifBranch:
-              ifNode.add(newTree(nnkElifBranch, br[0], lowerMount(parent, br[1])))
+              ifNode.add(newTree(nnkElifBranch, br[0], lowerMountChildren(parent, br[1])))
             of nnkElse:
-              ifNode.add(newTree(nnkElse, lowerMount(parent, br[0])))
+              ifNode.add(newTree(nnkElse, lowerMountChildren(parent, br[0])))
             else: discard
 
           result = ifNode
@@ -658,19 +655,19 @@ template createHtmlTag(name: untyped) =
           body = newTree(nnkStmtList,
             newLetStmt(frag, newCall(ident"jsCreateFragment")),
             newTree(nnkLetSection, bindDefs),
-            lowerMount(frag, bodyNode),
+            lowerMountChildren(frag, bodyNode),
             frag
           )
         )
 
         result = newTree(nnkStmtList,
           renderProc,
-          newCall(ident"mountFor", parent, newCall(ident"guardSeq", iterExpr), renderFn)
+          newCall(ident"mountChildFor", parent, newCall(ident"guardSeq", iterExpr), renderFn)
         )
 
       of nnkWhileStmt:
         let loop = copy(node)
-        loop[^1] = lowerMount(parent, node[^1])
+        loop[^1] = lowerMountChildren(parent, node[^1])
         result = loop
 
       of nnkLetSection, nnkVarSection, nnkConstSection, nnkAsgn, nnkDiscardStmt:
@@ -687,11 +684,11 @@ template createHtmlTag(name: untyped) =
           pushChild(it)
 
       of nnkExprEqExpr:
-        handleAttr($a[0], a[1])
+        lowerMountAttributes($a[0], a[1])
 
       of nnkInfix:
         if a[0].kind == nnkIdent and $a[0] == "=":
-          handleAttr($a[1], a[2])
+          lowerMountAttributes($a[1], a[2])
 
         else:
           pushChild(a)
@@ -716,7 +713,7 @@ template createHtmlTag(name: untyped) =
 
     # lower mount children
     for child in children:
-      statements.add(lowerMount(node, child))
+      statements.add(lowerMountChildren(node, child))
 
     # hoist events
     for i in 0 ..< eventNames.len:
@@ -733,21 +730,21 @@ template createHtmlTag(name: untyped) =
 
     result = statements
 
-createHtmlTag `b`
-createHtmlTag `br`
-createHtmlTag `button`
-createHtmlTag `d`
-createHtmlTag `form`
-createHtmlTag `fragment`
-createHtmlTag `h1`
-createHtmlTag `i`
-createHtmlTag `input`
-createHtmlTag `label`
-createHtmlTag `li`
-createHtmlTag `p`
-createHtmlTag `section`
-createHtmlTag `style`
-createHtmlTag `ul`
+createHtmlElement `b`
+createHtmlElement `br`
+createHtmlElement `button`
+createHtmlElement `d`
+createHtmlElement `form`
+createHtmlElement `fragment`
+createHtmlElement `h1`
+createHtmlElement `i`
+createHtmlElement `input`
+createHtmlElement `label`
+createHtmlElement `li`
+createHtmlElement `p`
+createHtmlElement `section`
+createHtmlElement `style`
+createHtmlElement `ul`
 
 when isMainModule:
   type
@@ -783,7 +780,7 @@ when isMainModule:
 
     Person = object
       firstname: string
-      likes: seq[string]
+      favoriteFood: string
 
   let styleTag =
     style:
@@ -810,8 +807,8 @@ when isMainModule:
     let formValue: Signal[cstring] = signal(cstring(""))
     let accepted: Signal[bool] = signal(false)
     let people: Signal[seq[Person]] = signal(@[
-      Person(firstname: "Axel", likes: @["pizza"]),
-      Person(firstname: "Synn", likes: @["pasta"]),
+      Person(firstname: "Axel", favoriteFood: "pizza"),
+      Person(firstname: "Synn", favoriteFood: "pasta"),
     ])
 
     let fruit: Signal[string] = signal("apple")
@@ -956,9 +953,18 @@ when isMainModule:
         ); br()
         button(`type`="submit", disabled=not accepted, style="margin-top: 8px"): "Submit"
 
-      for i, person in people:
-        li:
-          i; " "; person.firstname; " likes "; person.likes[0]
+      br();br()
+
+      button(
+        class="btn",
+        onClick = proc (e: Event) =
+          people.set(@[people.get()[1], people.get()[0]])
+      ): "Swap People"
+
+      ul:
+        for i, person in people:
+          li:
+            i; " "; person.firstname; " likes "; person.favoriteFood;
 
   let component: Node = Component(Props(
     title: "Nimbus Test Playground",
