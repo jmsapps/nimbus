@@ -444,6 +444,15 @@ proc `or`*(a: Signal[bool], b: bool): Signal[bool] =
 proc `not`*(a: Signal[bool]): Signal[bool] =
   derived(a, proc(x: bool): bool = not x)
 
+proc `&`*[T](a: string, b: Signal[T]): Signal[string] =
+  derived(b, proc(x: T): string = a & $x)
+
+proc `&`*[T](a: Signal[T], b: string): Signal[string] =
+  derived(a, proc(x: T): string = $x & b)
+
+proc `&`*[A, B](a: Signal[A], b: Signal[B]): Signal[string] =
+  combine2(a, b, proc(x: A, y: B): string = $x & $y)
+
 template createHtmlTag(name: untyped) =
   macro `name`*(args: varargs[untyped]): untyped =
     var tagName = astToStr(name).replace("`","")

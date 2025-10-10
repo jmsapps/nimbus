@@ -32,7 +32,5 @@ let component: Node =
 
 ## Project Status
 
-This project is still experimental. As such, implementation and examples are still under one
-file (nimbus.nim). TODO's are stored within the repo under `TODO.md` because everything is
-still being pushed directly to master. Once the code is deemed stable, issues and PR's will be
-the preferred method for development.
+This project is still experimental. As such, it is not currently in a state that is deemed
+ready for a production environment. A general roadmap can be found in `ROADMAP.md`.
