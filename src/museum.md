@@ -79,7 +79,7 @@ iterator pairs*[T](s: Signal[seq[T]]): (int, lent T) =
     inc i
 ```
 
-```
+```nim
 # Interesting way to debug, by passing the arg like `nim js -d:loopDebug nimbus.nim`
 when defined(loopDebug):
   echo "=== LOWERED FOR ==="
