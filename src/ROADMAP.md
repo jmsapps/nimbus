@@ -54,7 +54,7 @@
 
 ### ⬜️ Basic Error Handling
 
-- Guard code with `when compiles(js)`.
+- Guard code with `when defined(js)`.
 - Define minimal fallback or debug behavior.
 
 ### ⬜️ Project Examples

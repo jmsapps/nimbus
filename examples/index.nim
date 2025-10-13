@@ -73,7 +73,7 @@ when isMainModule:
         of "apples", "cherries": "red"
         of "bananas": "yellow"
         else: "it depends",
-      class=props.title
+      class=props.class
     ):
       h1(
         `data-even`=
