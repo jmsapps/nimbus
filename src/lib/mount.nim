@@ -48,6 +48,7 @@ when defined(js):
       outSeq
     )
 
+
   # Child mounts
   proc mountChild*(parent: Node, child: Node) =
     discard jsAppendChild(parent, child)
@@ -113,7 +114,7 @@ when defined(js):
   template mountChildCase*[T](parent: Node, disc: Signal[T], body: untyped) =
     mountChild(parent,
       derived(disc, proc(v: T): auto = (block:
-        let caseDisc {.inject.} = v
+        let caseDisc {.inject.} = when T is cstring: $v else: v
         body
       ))
     )
