@@ -23,21 +23,21 @@
 - Enable two-way binding: `<input value={signal}>` updates automatically on input.
 - Synchronize DOM and state seamlessly.
 
-### ⬜️ Add All HTML Elements
-
-- Define proper type mappings for all HTML elements.
-- Generate typed component wrappers (e.g. `Div`, `H1`, etc.).
-
-### ⬜️ Add Typed HTML Components
-
-- Expose type-safe components matching HTML semantics.
-- Ensure consistent attribute typing and auto-completion.
-
-### ⬜️ Project Formatting
+### ✅ Project Formatting
 
 - Reorganize code into proper folder structure (`lib`, `examples`, etc.).
 - Use `nimbus.nim` as project index.
 - Switch to absolute imports.
+
+### ✅ Add All HTML Elements
+
+- Define proper type mappings for all HTML elements.
+
+### ⬜️ Add Typed HTML Components
+
+- Generate typed component wrappers (e.g. `Div`, `H1`, etc.).
+- Expose type-safe components matching HTML semantics.
+- Ensure consistent attribute typing and auto-completion.
 
 ### ⬜️ Styled Components
 
@@ -84,6 +84,7 @@
 
 ### ⬜️ Improve Dev Experience
 
+- Make sure large projects compile quickly
 - Add simple runtime diagnostics: debug mode with log triggered signals and effect runs.
 - Hot reloading
 

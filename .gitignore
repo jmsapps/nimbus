@@ -39,3 +39,6 @@ Desktop.ini
 
 # Build
 nimbus
+
+# Dev
+playground*
