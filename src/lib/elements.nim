@@ -111,6 +111,19 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
     attrSetters.add(newCall(ident"mountAttr", node, kLit, value))
 
   proc lowerMountChildren(parent, node: NimNode): NimNode {.compileTime.} =
+    proc toExpr(body: NimNode): NimNode {.compileTime.} =
+      let cont = genSym(nskLet, "cont")
+      result = newTree(nnkStmtList,
+        newLetStmt(cont, newCall(ident"jsCreateElement", newCall(ident"cstring", newLit("span")))),
+        newCall(ident"setStringAttr", cont, newLit("style"), newLit("display: contents"))
+      )
+      if body.kind in {nnkStmtList, nnkStmtListExpr}:
+        for stmt in body:
+          result.add(lowerMountChildren(cont, stmt))
+      else:
+        result.add(lowerMountChildren(cont, body))
+      result.add(cont)
+
     case node.kind
     of nnkStmtList, nnkStmtListExpr, nnkBlockStmt:
       result = newTree(nnkStmtList)
@@ -118,9 +131,6 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
         result.add(lowerMountChildren(parent, it))
 
     of nnkIfStmt:
-      proc toExpr(body: NimNode): NimNode {.compileTime.} =
-        (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
-
       var hasElif = false
 
       for k, br in node:
@@ -152,9 +162,6 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
         result = newCall(ident"mountChildIf", parent, cond, thenExpr, elseExpr)
 
     of nnkCaseStmt:
-      proc toExpr(body: NimNode): NimNode {.compileTime.} =
-        (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
-
       let disc = node[0]
       let sel = ident"caseDisc"
 

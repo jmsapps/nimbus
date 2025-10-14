@@ -13,6 +13,7 @@ when defined(js):
 
   # Chilren mount utils
   proc toNode*(n: Node): Node = n
+  proc toNode*(s: char): Node = jsCreateTextNode(cstring($s))
   proc toNode*(s: string): Node = jsCreateTextNode(cstring(s))
   proc toNode*(s: cstring): Node = jsCreateTextNode(s)
   proc toNode*(x: int): Node = jsCreateTextNode(cstring($x))
@@ -52,6 +53,10 @@ when defined(js):
   # Child mounts
   proc mountChild*(parent: Node, child: Node) =
     discard jsAppendChild(parent, child)
+
+
+  proc mountChild*(parent: Node, child: char) =
+    discard jsAppendChild(parent, jsCreateTextNode(cstring($child)))
 
 
   proc mountChild*(parent: Node, child: string) =
@@ -186,7 +191,7 @@ when defined(js):
       jsRemoveAttribute(el, cstring(k))
 
 
-  proc setStringAttr(el: Node, key: string, value: string) =
+  proc setStringAttr*(el: Node, key: string, value: string) =
     let keyLowered = key.toLowerAscii()
     case keyLowered
     of "value":

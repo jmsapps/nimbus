@@ -60,3 +60,11 @@ proc `&`*[T](a: Signal[T], b: string): Signal[string] =
 
 proc `&`*[A, B](a: Signal[A], b: Signal[B]): Signal[string] =
   combine2(a, b, proc(x: A, y: B): string = $x & $y)
+
+
+proc `[]`*[T](s: Signal[seq[T]], i: int): Signal[T] =
+  derived(s, proc(xs: seq[T]): T = xs[i])
+
+
+proc `[]`*(s: Signal[string], i: int): Signal[char] =
+  derived(s, proc(xs: string): char = xs[i])
