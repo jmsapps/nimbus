@@ -122,6 +122,7 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
           result.add(lowerMountChildren(cont, stmt))
       else:
         result.add(lowerMountChildren(cont, body))
+
       result.add(cont)
 
     case node.kind
@@ -137,24 +138,27 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
         if k > 0 and br.kind == nnkElifBranch:
           hasElif = true
 
+      # TODO: fix elif blocks. add functionality for inline if checks
       if hasElif:
-        let ifNode = newTree(nnkIfStmt)
+        let ifNode: NimNode = newTree(nnkIfStmt)
 
         for br in node:
           case br.kind
           of nnkElifBranch:
             ifNode.add(newTree(nnkElifBranch, br[0], lowerMountChildren(parent, br[1])))
+
           of nnkElse:
             ifNode.add(newTree(nnkElse, lowerMountChildren(parent, br[0])))
+
           else: discard
 
         result = ifNode
 
       else:
-        let head = node[0]
-        let cond = head[0]
-        let thenExpr = toExpr(head[1])
-        var elseExpr: NimNode = newLit("")
+        let head: NimNode = node[0]
+        let cond: NimNode = head[0]
+        let thenExpr: NimNode = toExpr(head[1])
+        var elseExpr: NimNode = newCall(ident"jsCreateFragment")
 
         for br in node[1..^1]:
           if br.kind == nnkElse: elseExpr = toExpr(br[0])

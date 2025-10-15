@@ -80,6 +80,9 @@ when defined(js):
     res
 
 
+  template track*(src, expr: untyped): untyped =
+    derived(src, proc(_: typeof(src.value)): auto = expr)
+
 
   proc effect*[T](fn: proc(): Unsub, deps: openArray[Signal[T]]): Unsub =
     var cleanup: Unsub
