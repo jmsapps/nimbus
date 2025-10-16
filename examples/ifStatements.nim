@@ -1,21 +1,35 @@
-import ../src/nimbus
+when defined(js):
+  import
+    random
 
-when isMainModule:
-  let light = signal[bool](true)
+  import
+    ../src/nimbus
 
-  let component: Node =
-    d:
-      h1: "If Statements"
 
-      if track(light, get(light)) == true:
-        h2: "Light is on"
-      else:
-         h2: "Light is off"
+  when isMainModule:
+    randomize()
 
-      button(
-        onClick = proc (e: Event) =
-          light.set((if get(light) == true: false else: true))
-      ):
-        "Flip switch"
+    let dice: Signal[int] = signal[int](rand(1..6))
 
-  discard jsAppendChild(document.body, component)
+    let component: Node =
+      d:
+        h1: "If Statements"
+
+        h2:
+          if dice == 1 and dice != 2 or 1 == 2 or false or (true and false):
+            "You rolled a 1"
+          elif dice >= 2 and dice <= 6:
+            "You rolled a "; dice
+          else:
+            "The die landed perfectly on its corner... what are the odds?"
+
+        button(
+          onClick = proc (e: Event) =
+            let roll = rand(1..6)
+            let fluke = rand(1..1000)
+
+            dice.set((if fluke == 666: 7 else: roll))
+        ):
+          "Roll dice"
+
+    discard jsAppendChild(document.body, component)

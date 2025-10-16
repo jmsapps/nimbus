@@ -6,6 +6,8 @@ when defined(js):
 
 
   var cleanupRegistry: Table[system.int, seq[Unsub]] = initTable[int, seq[Unsub]]()
+  var nextId = 0
+
 
   when defined(js):
     proc nodeKey(n: Node): int
@@ -38,8 +40,15 @@ when defined(js):
       cleanupRegistry.del(k)
 
 
+  proc debugId(): string =
+    inc(nextId)
+
+    return "signal_" & $nextId
+
+
   proc signal*[T](initial: T): Signal[T] =
     new(result)
+    result.id = debugId()
     result.value = initial
     result.subs = @[]
 
@@ -52,7 +61,10 @@ when defined(js):
     if newValue != src.value:
       src.value = newValue
 
-      for f in src.subs:
+      # prevents subs mutation during assignment
+      let snapshot = src.subs
+
+      for f in snapshot:
         f(newValue)
 
 

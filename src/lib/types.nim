@@ -4,6 +4,7 @@ type
   Subscriber*[T] = proc (v: T)
 
   Signal*[T] = ref object
+    id*: string
     value*: T
     subs*: seq[Subscriber[T]]
 

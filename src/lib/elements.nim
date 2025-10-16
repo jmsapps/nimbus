@@ -14,18 +14,16 @@ import
 
 
 macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): untyped =
-  var tagName = tagNameLit
-  let node = genSym(nskLet, "node")
-  let statements = newTree(nnkStmtListExpr)
+  var tagName: string = tagNameLit
+  let node: NimNode = genSym(nskLet, "node")
+  let statements: NimNode = newTree(nnkStmtListExpr)
 
-  if tagName == "d":
-    tagName = "div"
-  elif tagName == "obj":
-    tagName = "object"
-  elif tagName == "tmpl":
-    tagName = "template"
-  elif tagName == "v":
-    tagName = "var"
+  case tagName
+  of "d": tagName = "div"
+  of "obj": tagName = "object"
+  of "tmpl": tagName = "template"
+  of "v": tagName = "var"
+  else: discard
 
   var children: seq[NimNode] = @[]
   var eventNames: seq[string] = @[]
@@ -132,38 +130,57 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
         result.add(lowerMountChildren(parent, it))
 
     of nnkIfStmt:
-      var hasElif = false
+      var conds: seq[NimNode] = @[]
+      var bodies: seq[NimNode] = @[]
+      var elseBody: NimNode
 
-      for k, br in node:
-        if k > 0 and br.kind == nnkElifBranch:
-          hasElif = true
+      for br in node:
+        case br.kind
+        of nnkElifBranch:
+          conds.add(br[0])
+          bodies.add(toExpr(br[1]))
 
-      # TODO: fix elif blocks. add functionality for inline if checks
-      if hasElif:
-        let ifNode: NimNode = newTree(nnkIfStmt)
+        of nnkElse:
+          elseBody = toExpr(br[0])
 
-        for br in node:
-          case br.kind
-          of nnkElifBranch:
-            ifNode.add(newTree(nnkElifBranch, br[0], lowerMountChildren(parent, br[1])))
+        else:
+          discard
 
-          of nnkElse:
-            ifNode.add(newTree(nnkElse, lowerMountChildren(parent, br[0])))
+      let anyPrior: NimNode = genSym(nskVar, "anyPrior")
+      var stmts: NimNode = newStmtList(
+        newVarStmt(anyPrior, newCall(ident"signal", newLit(false)))
+      )
 
-          else: discard
+      for i in 0 ..< conds.len:
+        let ciSig: NimNode = conds[i]
 
-        result = ifNode
+        let gated: NimNode =
+          if i == 0:
+            ciSig
+          else:
+            newCall(ident"and", newCall(ident"not", anyPrior), ciSig)
 
-      else:
-        let head: NimNode = node[0]
-        let cond: NimNode = head[0]
-        let thenExpr: NimNode = toExpr(head[1])
-        var elseExpr: NimNode = newCall(ident"jsCreateFragment")
+        stmts.add(newCall(
+          ident"mountChildIf",
+          parent,
+          gated,
+          bodies[i],
+          newCall(ident"jsCreateFragment")
+        ))
 
-        for br in node[1..^1]:
-          if br.kind == nnkElse: elseExpr = toExpr(br[0])
+        stmts.add(newAssignment(anyPrior, newCall(ident"or", anyPrior, ciSig)))
 
-        result = newCall(ident"mountChildIf", parent, cond, thenExpr, elseExpr)
+      if not elseBody.isNil:
+        let elseCond: NimNode = newCall(ident"not", anyPrior)
+        stmts.add(newCall(
+          ident"mountChildIf",
+          parent,
+          elseCond,
+          elseBody,
+          newCall(ident"jsCreateFragment")
+        ))
+
+      result = stmts
 
     of nnkCaseStmt:
       let disc = node[0]

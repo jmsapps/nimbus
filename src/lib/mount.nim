@@ -127,7 +127,7 @@ when defined(js):
 
   proc mountChildFor*[T](parent: Node, items: seq[T], render: proc (it: T): Node) =
     let startN = jsCreateTextNode(cstring(""))
-    let endN   = jsCreateTextNode(cstring(""))
+    let endN = jsCreateTextNode(cstring(""))
     discard jsAppendChild(parent, startN)
     discard jsAppendChild(parent, endN)
 
@@ -144,7 +144,7 @@ when defined(js):
 
   proc mountChildFor*[T](parent: Node, items: Signal[seq[T]], render: proc (it: T): Node) =
     let startN = jsCreateTextNode(cstring(""))
-    let endN   = jsCreateTextNode(cstring(""))
+    let endN = jsCreateTextNode(cstring(""))
     discard jsAppendChild(parent, startN)
     discard jsAppendChild(parent, endN)
 

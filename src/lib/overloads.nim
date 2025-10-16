@@ -22,6 +22,66 @@ proc `==`*[T](a, b: Signal[T]): Signal[bool] =
   combine2(a, b, proc(x, y: T): bool = x == y)
 
 
+proc `!=`*[T](a: Signal[T], b: T): Signal[bool] =
+  derived(a, proc(x: T): bool = x != b)
+
+
+proc `!=`*[T](a: T, b: Signal[T]): Signal[bool] =
+  derived(b, proc(x: T): bool = a != x)
+
+
+proc `!=`*[T](a, b: Signal[T]): Signal[bool] =
+  combine2(a, b, proc(x, y: T): bool = x != y)
+
+
+proc `<`*[T](a: Signal[T], b: T): Signal[bool] =
+  derived(a, proc(x: T): bool = x < b)
+
+
+proc `<`*[T](a: T, b: Signal[T]): Signal[bool] =
+  derived(b, proc(x: T): bool = a < x)
+
+
+proc `<`*[T](a, b: Signal[T]): Signal[bool] =
+  combine2(a, b, proc(x, y: T): bool = x < y)
+
+
+proc `<=`*[T](a: Signal[T], b: T): Signal[bool] =
+  derived(a, proc(x: T): bool = x <= b)
+
+
+proc `<=`*[T](a: T, b: Signal[T]): Signal[bool] =
+  derived(b, proc(x: T): bool = a <= x)
+
+
+proc `<=`*[T](a, b: Signal[T]): Signal[bool] =
+  combine2(a, b, proc(x, y: T): bool = x <= y)
+
+
+proc `>`*[T](a: Signal[T], b: T): Signal[bool] =
+  derived(a, proc(x: T): bool = x > b)
+
+
+proc `>`*[T](a: T, b: Signal[T]): Signal[bool] =
+  derived(b, proc(x: T): bool = a > x)
+
+
+proc `>`*[T](a, b: Signal[T]): Signal[bool] =
+  combine2(a, b, proc(x, y: T): bool = x > y)
+
+
+proc `>=`*[T](a: Signal[T], b: T): Signal[bool] =
+  derived(a, proc(x: T): bool = x >= b)
+
+
+proc `>=`*[T](a: T, b: Signal[T]): Signal[bool] =
+  derived(b, proc(x: T): bool = a >= x)
+
+
+proc `>=`*[T](a, b: Signal[T]): Signal[bool] =
+  combine2(a, b, proc(x, y: T): bool = x >= y)
+
+
 proc `and`*(a: bool, b: Signal[bool]): Signal[bool] =
   derived(b, proc(y: bool): bool = a and y)
 
