@@ -302,18 +302,23 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
     statements.add(lowerMountChildren(node, child))
 
   for i in 0 ..< eventNames.len:
-    let cbSym = genSym(nskLet, "cb")
+    let eventNameExpr: NimNode = newCall(ident"cstring", newLit(eventNames[i]))
+    let eventTypeSym: NimNode = genSym(nskLet, "eventType")
+    let handlerSym: NimNode = genSym(nskLet, "handler")
 
-    statements.add(newLetStmt(cbSym, eventHandlers[i]))
-    statements.add(
-      newCall(
-        ident"jsAddEventListener", node, newCall(ident"cstring", newLit(eventNames[i])), cbSym
-      )
-    )
+    statements.add(newLetStmt(eventTypeSym, eventNameExpr))
+    statements.add(newLetStmt(handlerSym, eventHandlers[i]))
+    statements.add(newCall(ident"jsAddEventListener", node, eventTypeSym, handlerSym))
+    statements.add(newCall(
+      ident"registerCleanup",
+      node,
+      newProc(body = newCall(ident"jsRemoveEventListener", node, eventTypeSym, handlerSym))
+    ))
 
   statements.add(node)
 
   result = statements
+
 
 macro defineHtmlElements*(names: varargs[untyped]): untyped =
   result = newStmtList()
@@ -336,6 +341,7 @@ macro defineHtmlElements*(names: varargs[untyped]): untyped =
           call.add(it)
         result = call
     )
+
 
 defineHtmlElements a,
   abbr,
