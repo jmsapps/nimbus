@@ -1,20 +1,39 @@
-import ../src/nimbus
+when defined(js):
+  import ../src/nimbus
 
-when isMainModule:
-  type
-    SubObject = object
-      subList: seq[int]
+  when isMainModule:
+    type
+      SubObj = object
+        subList: seq[string]
 
-    Object = object
-      subObject: SubObject
+      Object = object
+        subObj: SubObj
 
-  let obj = signal[Object](Object(subObject: SubObject(subList: @[1, 2, 3, 4, 5])))
+    let obj = signal[Object](Object(subObj: SubObj(subList: @["*", "-", "-", "-", "-"])))
 
-  let component: Node =
-    d:
-      h1: "For Statements"
+    static:
+      doAssert obj.subObj is Signal[SubObj]
+      doAssert obj.subObj.subList is Signal[seq[string]]
+      doAssert not compiles(obj.n)
 
-      for i in track(obj, get(obj).subObject.subList):
-        i
+    let component: Node =
+      d:
+        h1: "For Statements"
 
-  discard jsAppendChild(document.body, component)
+        ul:
+          for i, v in obj.subObj.subList:
+            li: obj.subObj.subList[i]; v
+
+        br(); br();
+
+        button(onClick =
+          proc (e: Event) =
+            var oldList = get(obj).subObj.subList
+            let popped = @[oldList.pop()]
+            let newList = popped & oldList
+
+            set(obj, Object(subObj: SubObj(subList: newList)))
+        ):
+          "Cycle list"
+
+    discard jsAppendChild(document.body, component)

@@ -21,6 +21,10 @@ when defined(js):
   proc toNode*(x: bool): Node = jsCreateTextNode(cstring($x))
 
 
+  proc guardSeq*[T](xs: seq[T]): seq[T] {.inline.} = xs
+  proc guardSeq*[T](xs: Signal[seq[T]]): Signal[seq[T]] {.inline.} = xs
+
+
   proc removeBetween*(parent: Node, startN, endN: Node) =
     var n = startN.nextSibling
     while n != endN and n != nil:
@@ -28,13 +32,6 @@ when defined(js):
       runCleanups(n)
       discard jsRemoveChild(parent, n)
       n = nxt
-
-
-  template guardSeq*(x): untyped =
-    when x is seq or x is Signal[seq]:
-      x
-    else:
-      {.error: "mountChildFor expects seq[T] or Signal[seq[T]]".}
 
 
   proc toIndexSeq*[T](xs: seq[T]): seq[(int, T)] =

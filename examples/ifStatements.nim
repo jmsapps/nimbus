@@ -9,7 +9,19 @@ when defined(js):
   when isMainModule:
     randomize()
 
+    type
+      LightState = enum
+        on,
+        off
+
+      LightSwitch = object
+        state: LightState
+
+      Light = object
+        switch: LightSwitch
+
     let dice: Signal[int] = signal[int](rand(1..6))
+    let light: Signal[Light] = signal(Light(switch: LightSwitch(state: on)))
 
     let component: Node =
       d:
@@ -31,5 +43,22 @@ when defined(js):
             dice.set((if fluke == 666: 7 else: roll))
         ):
           "Roll dice"
+
+        br();br();
+        "------------------------------"
+        br();br();
+
+        h2:
+          if light.switch.state == on:
+            "Light is on"
+          else:
+            "Light is off"
+
+        button(onClick =
+          proc (e: Event) =
+            let state = get(light).switch.state
+            light.set(Light(switch: LightSwitch(state: (if state == on: off else: on))))
+        ):
+          "Turn light "; if light.switch.state == on: "off" else: "on"
 
     discard jsAppendChild(document.body, component)
