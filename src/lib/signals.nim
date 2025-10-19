@@ -48,44 +48,44 @@ when defined(js):
 
   proc signal*[T](initial: T): Signal[T] =
     new(result)
-    result.id = debugId()
-    result.value = initial
-    result.subs = @[]
+    result.signalId = debugId()
+    result.signalValue = initial
+    result.signalSubs = @[]
 
 
   proc get*[T](src: Signal[T]): T =
-    src.value
+    src.signalValue
 
 
   proc set*[T](src: Signal[T], newValue: T) =
-    if newValue != src.value:
-      src.value = newValue
+    if newValue != src.signalValue:
+      src.signalValue = newValue
 
       # prevents subs mutation during assignment
-      let snapshot = src.subs
+      let snapshot = src.signalSubs
 
       for f in snapshot:
         f(newValue)
 
 
   proc sub*[T](src: Signal[T], fn: Subscriber[T]): Unsub =
-    src.subs.add(fn)
-    fn(src.value)
+    src.signalSubs.add(fn)
+    fn(src.signalValue)
 
     result = proc() =
       var i: int = -1
 
-      for idx, g in src.subs:
+      for idx, g in src.signalSubs:
         if g == fn:
           i = idx
           break
 
       if i >= 0:
-        src.subs.delete(i)
+        src.signalSubs.delete(i)
 
 
   proc derived*[A, B](src: Signal[A], fn: proc(a: A): B): Signal[B] =
-    let res = signal[B](fn(src.value))
+    let res = signal[B](fn(src.signalValue))
 
     discard src.sub(proc(a: A) = res.set(fn(a)))
 
@@ -93,7 +93,7 @@ when defined(js):
 
 
   template track*(src, expr: untyped): untyped =
-    derived(src, proc(_: typeof(src.value)): auto = expr)
+    derived(src, proc(_: typeof(src.signalValue)): auto = expr)
 
 
   proc effect*[T](fn: proc(): Unsub, deps: openArray[Signal[T]]): Unsub =
@@ -106,7 +106,7 @@ when defined(js):
     var unsubs: seq[Unsub] = @[]
 
     for d in deps:
-      unsubs.add(d.sub(proc (v: type(d.value)) = run()))
+      unsubs.add(d.sub(proc (v: type(d.signalValue)) = run()))
 
     result = proc() =
       for u in unsubs:
@@ -127,7 +127,7 @@ when defined(js):
     var unsubs: seq[Unsub] = @[]
 
     for d in deps:
-      unsubs.add(d.sub(proc (v: type(d.value)) = run()))
+      unsubs.add(d.sub(proc (v: type(d.signalValue)) = run()))
 
     result = proc() =
       for u in unsubs:

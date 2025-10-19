@@ -1,5 +1,6 @@
 when defined(js):
   {.experimental: "dotOperators".}
+  {.experimental: "callOperator".}
 
   import signals
 
@@ -133,5 +134,13 @@ when defined(js):
     derived(s, proc(xs: string): char = xs[i])
 
 
+  proc `()`*[T](s: Signal[T]): T =
+    get(s)
+
+
   template `.`*[T](s: Signal[T], field: untyped): untyped =
     derived(s, proc (x: T): auto = x.`field`)
+
+
+  proc `len`*[T](s: Signal[seq[T]]): Signal[int] =
+    derived(s, proc(xs: seq[T]): int = len(xs))

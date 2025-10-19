@@ -15,13 +15,13 @@ when defined(js):
         off
 
       LightSwitch = object
-        state: LightState
+        value: LightState
 
       Light = object
         switch: LightSwitch
 
     let dice: Signal[int] = signal[int](rand(1..6))
-    let light: Signal[Light] = signal(Light(switch: LightSwitch(state: on)))
+    let light: Signal[Light] = signal(Light(switch: LightSwitch(value: on)))
 
     let component: Node =
       d:
@@ -49,16 +49,16 @@ when defined(js):
         br();br();
 
         h2:
-          if light.switch.state == on:
+          if light.switch.value == on:
             "Light is on"
           else:
             "Light is off"
 
         button(onClick =
           proc (e: Event) =
-            let state = get(light).switch.state
-            light.set(Light(switch: LightSwitch(state: (if state == on: off else: on))))
+            let value = light().switch.value
+            light.set(Light(switch: LightSwitch(value: (if value == on: off else: on))))
         ):
-          "Turn light "; if light.switch.state == on: "off" else: "on"
+          "Turn light "; if light.switch.value == on: "off" else: "on"
 
     discard jsAppendChild(document.body, component)

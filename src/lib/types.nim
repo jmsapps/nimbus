@@ -4,9 +4,9 @@ type
   Subscriber*[T] = proc (v: T)
 
   Signal*[T] = ref object
-    id*: string
-    value*: T
-    subs*: seq[Subscriber[T]]
+    signalId*: string
+    signalValue*: T
+    signalSubs*: seq[Subscriber[T]]
 
   Props* = object of RootObj
     accesskey*: string = ""        # Keyboard shortcut to activate/focus an element
