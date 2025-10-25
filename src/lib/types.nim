@@ -8,6 +8,9 @@ type
     signalValue*: T
     signalSubs*: seq[Subscriber[T]]
 
+  Router* = object
+    location*: Signal[string]
+
   Props* = object of RootObj
     accesskey*: string = ""        # Keyboard shortcut to activate/focus an element
     autocapitalize*: string = ""   # Controls text capitalization in forms (none, sentences, etc.)

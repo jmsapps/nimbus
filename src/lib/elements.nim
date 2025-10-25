@@ -7,7 +7,8 @@ import
   mount,
   shims,
   overloads,
-  signals
+  signals,
+  routing
 
 import
   types
@@ -466,4 +467,5 @@ export
   shims,
   overloads,
   signals,
+  routing,
   types

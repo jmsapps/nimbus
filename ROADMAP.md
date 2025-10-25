@@ -43,7 +43,7 @@
 
 - Add styling support for HTML elements and user-defined components.
 
-### ⬜️ Routing
+### ✅ Routing
 
 - Implement `navigate()` method and basic routing logic.
 
@@ -103,3 +103,7 @@
 - Add `onMount(fn)` and `onCleanup(fn)`.
 - Integrate with cleanup registry for automatic teardown.
 - Enable safe use of timers, subscriptions, and observers within components.
+
+### ⬜️ Hash Routing
+
+- Have webpage auto scroll to relative fragment identifiers

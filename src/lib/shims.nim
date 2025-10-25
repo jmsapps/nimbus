@@ -30,3 +30,11 @@ when defined(js):
   proc jsSetProp*(el: Node, k: cstring, v: cstring) {.importjs: "#[#] = #".}
   proc jsSetProp*(el: Node, k: cstring, v: int) {.importjs: "#[#] = #".}
   proc jsSetProp*(el: Node, k: cstring, v: float) {.importjs: "#[#] = #".}
+
+  # Routing
+  proc jsLocationPathname*(default: string = "/"): string {.importjs: "cstrToNimstr(window.location.pathname || toJSStr(#))".}
+  proc jsLocationSearch*(default: string = ""): string {.importjs: "cstrToNimstr(window.location.search || toJSStr(#))".}
+  proc jsLocationHash*(default: string = ""): string {.importjs: "cstrToNimstr(window.location.hash || toJSStr(#))".}
+  proc jsHistoryPushState*(url: string) {.importjs: "window.history.pushState(null, '', toJSStr(#))".}
+  proc jsHistoryReplaceState*(url: string) {.importjs: "window.history.replaceState(null, '', toJSStr(#))".}
+  proc jsLocationAssign*(url: string) {.importjs: "window.location.assign(toJSStr(#))".}
