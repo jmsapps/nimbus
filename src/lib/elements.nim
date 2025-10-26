@@ -1,14 +1,16 @@
 import
   dom,
   macros,
-  strutils
+  strutils,
+  hashes
 
 import
   mount,
-  shims,
   overloads,
+  routing,
+  shims,
   signals,
-  routing
+  styled
 
 import
   types
@@ -59,6 +61,38 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
       attrSetters.add newCall(ident"bindChecked", node, value)
 
       return
+
+    elif keyLowered == "css":
+      # compute a stable class (compile-time hash over the literal)
+      if value.kind in {nnkStrLit, nnkTripleStrLit}:
+        let cssStr = value.strVal
+        # simple stable hash for a compact suffix:
+        proc fnv1a32(s: string): uint32 {.compileTime.} =
+          var h: uint32 = 2166136261'u32
+          for c in s: h = (h xor uint32(ord(c))) * 16777619'u32
+          h
+        let hashStr = $fnv1a32(cssStr)
+        let suffix =
+          if hashStr.len >= 6: hashStr[^6..^1]
+          else: hashStr
+        let clsName = "s-" & suffix
+        attrSetters.add newCall(ident"injectCssOnce", newLit(clsName), newLit(cssStr))
+        attrSetters.add newCall(ident"markStyledClass", node, newLit(clsName))
+        # force one class write so unionWithStyled runs at least once
+        attrSetters.add newCall(ident"setStringAttr", node, newLit("class"), newLit(""))
+        return
+      else:
+        # non-literal css: fall back to runtime path (hash string at runtime)
+        let tmpCss = genSym(nskLet, "css")
+        let tmpCls = genSym(nskLet, "cls")
+        attrSetters.add newLetStmt(tmpCss, value)
+        # simple runtime hash (optionally mirror FNV in JS via emit)
+        attrSetters.add quote do:
+          let `tmpCls` = "s-" & $hash(`tmpCss`)
+          injectCssOnce(`tmpCls`, `tmpCss`)
+          markStyledClass(`node`, `tmpCls`)
+          setStringAttr(`node`, "class", "")
+        return
 
     if value.kind == nnkIfExpr or value.kind == nnkIfStmt:
       var cond, thenExpr, elseExpr: NimNode
@@ -464,8 +498,9 @@ export
 
 export
   mount,
-  shims,
   overloads,
-  signals,
   routing,
+  shims,
+  signals,
+  styled,
   types

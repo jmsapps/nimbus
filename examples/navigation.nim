@@ -70,9 +70,11 @@ when isMainModule:
         button(`type`="submit", style="margin-top: 8px"): "Submit"
 
       if submitted:
-        let c = creds.get()
         br()
-        if c.username != "user123" or c.password != "pass123":
+        let invalidCreds = derived(creds, proc(c: Credentials): bool =
+          c.username != "user123" or c.password != "pass123"
+        )
+        if invalidCreds:
           i: "Incorrect login information"
 
       br(); br()

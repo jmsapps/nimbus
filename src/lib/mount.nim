@@ -6,7 +6,8 @@ when defined(js):
   import
     constants,
     shims,
-    signals
+    signals,
+    styled
 
   import types
 
@@ -29,6 +30,7 @@ when defined(js):
     var n = startN.nextSibling
     while n != endN and n != nil:
       let nxt = n.nextSibling
+      # TODO: apply disposeNode(n)
       runCleanups(n)
       discard jsRemoveChild(parent, n)
       n = nxt
@@ -209,7 +211,10 @@ when defined(js):
           jsRemoveAttribute(el, cstring(keyLowered))
         else:
           case keyLowered
-          of "class", "style":
+          of "class":
+            let merged = unionWithStyled(el, cstring(value))
+            jsSetAttribute(el, cstring("class"), merged)
+          of "style":
             discard
           else:
             jsSetProp(el, propKey(keyLowered), cstring(value))

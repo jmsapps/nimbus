@@ -2,11 +2,14 @@ when defined(js):
   from dom import Node
   import tables
 
-  import types
+  import
+    shims,
+    types
 
-
-  var cleanupRegistry: Table[system.int, seq[Unsub]] = initTable[int, seq[Unsub]]()
-  var nextId = 0
+  var
+    cleanupRegistry: Table[system.int, seq[Unsub]] = initTable[int, seq[Unsub]]()
+    nodeDisposers*: seq[NodeDisposer] = @[]
+    nextId = 0
 
 
   when defined(js):
@@ -38,6 +41,23 @@ when defined(js):
         if fn != nil: fn()
 
       cleanupRegistry.del(k)
+
+
+  proc disposeNode*(el: Node) =
+    if el == nil:
+      return
+
+    runCleanups(el)
+    for hook in nodeDisposers:
+      if hook != nil:
+        hook(el)
+
+    var child = jsGetNodeProp(el, cstring("firstChild"))
+
+    while child != nil:
+      let next = jsGetNodeProp(child, cstring("nextSibling"))
+      disposeNode(child)
+      child = next
 
 
   proc debugId(): string =
@@ -149,3 +169,7 @@ when defined(js):
   proc effect*(fn: proc(): void): Unsub =
     fn()
     result = proc() = discard
+
+
+  proc addNodeDisposer*(hook: NodeDisposer) =
+    nodeDisposers.add(hook)
