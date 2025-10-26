@@ -1,6 +1,8 @@
 when defined(js):
   from dom import document, Node, Event, Window
 
+  # render
+  proc render*(node: Node) {.importjs: "document.body.appendChild(#)".}
 
   # Elements
   proc jsCreateElement*(s: cstring): Node {.importjs: "document.createElement(#)".}

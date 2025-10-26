@@ -9,6 +9,12 @@ when isMainModule:
   let router = router()
   let location = router.location
 
+  let NotFound: Node = d:
+    d(style="padding:32px; text-align:center"):
+      h1(style="color:#c00"): "404"
+      p: "This page does not exist."
+      button(onClick = proc(e: Event) = navigate("/")): "Go Home"
+
   let HomePage: Node = d:
     h1: "Home"
     p: "Welcome to Nimbus Routing Demo!"
@@ -76,8 +82,25 @@ when isMainModule:
     h1: "Welcome, you are logged in!"
     p: "You successfully submitted the form."
 
+
+    button(onClick = proc(e: Event) = navigate("+/settings")):
+      "Go to settings"
     button(onClick = proc(e: Event) = navigate("/")):
       "Log out"
+
+  let SettingsPage: Node = d:
+    h1: "User Settings"
+
+    button(onClick = proc(e: Event) = navigate("+/sub-settings")):
+      "Go to sub settings"
+    button(onClick = proc(e: Event) = navigate("/logged-in")):
+      "Go back"
+
+  let SubSettingsPage: Node = d:
+    h1: "Sub User Settings"
+
+    button(onClick = proc(e: Event) = navigate("-/")):
+      "Go back"
 
   let AboutPage: Node = d:
     h1: "About"
@@ -85,17 +108,20 @@ when isMainModule:
     button(onClick = proc(e: Event) = navigate("/")):
       "Back Home"
 
-  let component: Node = d:
-    case location
-    of "/":
-      HomePage
-    of "/login":
-      LoginPage
-    of "/logged-in":
-      LoggedInPage
-    of "/about":
-      AboutPage
-    else:
-      h1: "404 Not Found"
+  let app: Node =
+    Routes(location):
+      Route(path="/", component=HomePage)
 
-  discard jsAppendChild(document.body, component)
+      Route(path="/login", component=LoginPage)
+
+      Route(path="/logged-in", component=LoggedInPage):
+
+        Route(path="settings", component=SettingsPage):
+
+          Route(path="sub-settings", component=SubSettingsPage)
+
+      Route(path="/about", component=AboutPage)
+
+      Route(path="*", component=NotFound)
+
+  render(app)
