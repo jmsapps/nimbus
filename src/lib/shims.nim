@@ -1,7 +1,7 @@
 when defined(js):
   from dom import document, Node, Event, Window
 
-  # render
+  # Render
   proc render*(node: Node) {.importjs: "document.body.appendChild(#)".}
 
   # Elements
@@ -32,6 +32,8 @@ when defined(js):
   proc jsSetProp*(el: Node, k: cstring, v: cstring) {.importjs: "#[#] = #".}
   proc jsSetProp*(el: Node, k: cstring, v: int) {.importjs: "#[#] = #".}
   proc jsSetProp*(el: Node, k: cstring, v: float) {.importjs: "#[#] = #".}
+  proc jsSetStyleProperty*(el: Node, name, value: cstring) {.importjs: "#.style.setProperty(#,#)".}
+  proc jsRemoveStyleProperty*(el: Node, name: cstring) {.importjs: "#.style.removeProperty(#)".}
 
   # Routing
   proc jsLocationPathname*(default: string = "/"): string {.importjs: "cstrToNimstr(window.location.pathname || toJSStr(#))".}

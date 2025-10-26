@@ -17,7 +17,7 @@ when defined(js):
 
 
   proc jsInsertCssRule(el: Node; rule: cstring; index: int): int {.importjs: """
-    (function(el, rule, index){
+    (function(el, rule, index) {
       if (!el || !el.sheet) return -1;
       var sheet = el.sheet;
       var target = (typeof index === 'number' && index >= 0)
@@ -34,7 +34,7 @@ when defined(js):
 
 
   proc jsSetRuleCss(el: Node; index: int; css: cstring) {.importjs: """
-    (function(el, index, css){
+    (function(el, index, css) {
       if (!el || !el.sheet) return;
       var sheet = el.sheet;
       var rule = sheet.cssRules[index];
@@ -46,7 +46,7 @@ when defined(js):
 
 
   proc jsDeleteCssRule(el: Node; index: int) {.importjs: """
-    (function(el, index){
+    (function(el, index) {
       if (!el || !el.sheet) return;
       var sheet = el.sheet;
       if (typeof index === 'number' && index >= 0 && index < sheet.cssRules.length) {
@@ -57,7 +57,7 @@ when defined(js):
 
 
   proc jsMarkStyled(el: Node; cls: cstring): bool {.importjs: """
-    (function(el, cls){
+    (function(el, cls) {
       var prev = el.getAttribute('data-styled');
       if (!prev) {
         el.setAttribute('data-styled', cls);
@@ -73,7 +73,7 @@ when defined(js):
 
 
   proc jsUnionStyled(el: Node; incoming: cstring): cstring {.importjs: """
-    (function(el, inc){
+    (function(el, inc) {
       var s = el.getAttribute('data-styled') || '';
       var combo = ((inc || '') + ' ' + s).trim();
       if (!combo) return '';
@@ -84,7 +84,7 @@ when defined(js):
 
 
   proc jsReadStyled(el: Node): cstring {.importjs: """
-    (function(el){
+    (function(el) {
       if (!el || typeof el.getAttribute !== 'function') return '';
       return el.getAttribute('data-styled') || '';
     })(#)
@@ -165,6 +165,52 @@ when defined(js):
   proc unionWithStyled*(el: Node; incoming: cstring): cstring =
     # merge incoming class string with data-styled before setting 'class'
     jsUnionStyled(el, incoming)
+
+
+  proc cssVarEntry*(name: string; value: string): CssVarEntry =
+    CssVarEntry(name: name, literal: value, isSignal: false)
+
+
+  proc cssVarEntry*(name: string; value: Signal[string]): CssVarEntry =
+    CssVarEntry(name: name, signal: value, isSignal: true)
+
+
+  macro styleVars*(args: varargs[untyped]): untyped =
+    if args.len == 0:
+      return quote do:
+        @[]
+
+    let ctor = bindSym"cssVarEntry"
+    var items = newNimNode(nnkBracket)
+    for arg in args:
+      if arg.kind != nnkExprEqExpr:
+        error("styleVars expects entries like name = value", arg)
+      items.add(newCall(ctor, arg[0], arg[1]))
+
+    result = quote do:
+      @`items`
+
+
+  proc applyStyleVars*(el: Node; vars: openArray[CssVarEntry]) =
+    for entry in vars:
+      let varName = entry.name
+      if varName.len == 0:
+        continue
+
+      proc setLiteral(value: string) =
+        if value.len == 0:
+          jsRemoveStyleProperty(el, cstring(varName))
+        else:
+          jsSetStyleProperty(el, cstring(varName), cstring(value))
+
+      if entry.isSignal:
+        if entry.signal == nil:
+          continue
+        setLiteral(entry.signal.get())
+        let unsub = entry.signal.sub(proc (v: string) = setLiteral(v))
+        registerCleanup(el, unsub)
+      else:
+        setLiteral(entry.literal)
 
 
   proc releaseStyledFromNode(el: Node) =

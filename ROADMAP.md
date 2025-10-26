@@ -33,19 +33,17 @@
 
 - Define proper type mappings for all HTML elements.
 
-### ⬜️ Add Typed HTML Components
-
-- Generate typed component wrappers (e.g. `Div`, `H1`, etc.).
-- Expose type-safe components matching HTML semantics.
-- Ensure consistent attribute typing and auto-completion.
-
-### ⬜️ Styled Components
+### ✅ Styled Components
 
 - Add styling support for HTML elements and user-defined components.
 
 ### ✅ Routing
 
 - Implement `navigate()` method and basic routing logic.
+
+---
+
+## Version 0.6.0 — Stability & Scale
 
 ### ⬜️ Global Store / Dispatching
 
@@ -62,9 +60,19 @@
 - Different example files showcasing project features
 - Miniature app project with routing and CRUD.
 
+### ⬜️ Add Typed HTML Components
+
+- Generate typed component wrappers (e.g. `Div`, `H1`, etc.).
+- Expose type-safe components matching HTML semantics.
+- Ensure consistent attribute typing and auto-completion.
+
+### ⬜️ Hot Reloading
+
+- Hot reload project on save
+
 ---
 
-## Version 1.0.0 — Stability & Scale
+## Version 1.0.0 — Production Ready
 
 ### ⬜️ Fine-Grained Reactivity
 

@@ -42,61 +42,73 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
     if key == "className":
       key = "class"
 
-    let keyLowered = key.toLowerAscii()
-    let kLit = newLit(key)
+    let keyLowered: string = key.toLowerAscii()
+    let kLit: NimNode = newLit(key)
 
     if keyLowered.len >= 3 and keyLowered.startsWith("on"):
-      let event = keyLowered[2..^1]
+      let event: string = keyLowered[2..^1]
       eventNames.add(event)
       eventHandlers.add(value)
 
       return
 
     if keyLowered == "value":
-      attrSetters.add newCall(ident"bindValue", node, value)
+      attrSetters.add(newCall(ident"bindValue", node, value))
 
       return
 
     elif keyLowered == "checked":
-      attrSetters.add newCall(ident"bindChecked", node, value)
+      attrSetters.add(newCall(ident"bindChecked", node, value))
 
       return
 
     elif keyLowered == "css":
       # compute a stable class (compile-time hash over the literal)
       if value.kind in {nnkStrLit, nnkTripleStrLit}:
-        let cssStr = value.strVal
+        let cssStr: string = value.strVal
+
         # simple stable hash for a compact suffix:
         proc fnv1a32(s: string): uint32 {.compileTime.} =
           var h: uint32 = 2166136261'u32
-          for c in s: h = (h xor uint32(ord(c))) * 16777619'u32
+          for c in s:
+            h = (h xor uint32(ord(c))) * 16777619'u32
+
           h
-        let hashStr = $fnv1a32(cssStr)
-        let suffix =
-          if hashStr.len >= 6: hashStr[^6..^1]
-          else: hashStr
-        let clsName = "s-" & suffix
-        attrSetters.add newCall(ident"injectCssOnce", newLit(clsName), newLit(cssStr))
-        attrSetters.add newCall(ident"markStyledClass", node, newLit(clsName))
+
+        let hashStr: string = $fnv1a32(cssStr)
+        let suffix: string = (if hashStr.len >= 6: hashStr[^6..^1] else: hashStr)
+        let clsName: string = "s-" & suffix
+
+        attrSetters.add(newCall(ident"injectCssOnce", newLit(clsName), newLit(cssStr)))
+        attrSetters.add(newCall(ident"markStyledClass", node, newLit(clsName)))
         # force one class write so unionWithStyled runs at least once
-        attrSetters.add newCall(ident"setStringAttr", node, newLit("class"), newLit(""))
+        attrSetters.add(newCall(ident"setStringAttr", node, newLit("class"), newLit("")))
+
         return
+
       else:
         # non-literal css: fall back to runtime path (hash string at runtime)
-        let tmpCss = genSym(nskLet, "css")
-        let tmpCls = genSym(nskLet, "cls")
-        attrSetters.add newLetStmt(tmpCss, value)
+        let tmpCss: NimNode = genSym(nskLet, "css")
+        let tmpCls: NimNode = genSym(nskLet, "cls")
+        attrSetters.add(newLetStmt(tmpCss, value))
+
         # simple runtime hash (optionally mirror FNV in JS via emit)
-        attrSetters.add quote do:
+        attrSetters.add(quote do:
           let `tmpCls` = "s-" & $hash(`tmpCss`)
           injectCssOnce(`tmpCls`, `tmpCss`)
           markStyledClass(`node`, `tmpCls`)
           setStringAttr(`node`, "class", "")
+        )
+
         return
+
+    elif keyLowered == "cssvars" or keyLowered == "stylevars":
+      attrSetters.add(newCall(ident"applyStyleVars", node, value))
+      return
 
     if value.kind == nnkIfExpr or value.kind == nnkIfStmt:
       var cond, thenExpr, elseExpr: NimNode
-      let head = value[0]
+      let head: NimNode = value[0]
 
       cond = head[0]
       thenExpr = (if head[1].kind == nnkStmtList and head[1].len > 0: head[1][^1] else: head[1])
@@ -112,27 +124,27 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
       return
 
     if value.kind == nnkCaseStmt:
-      let disc = value[0]
-      let sel  = ident"caseDisc"
-      var caseNode = newTree(nnkCaseStmt, sel)
+      let disc: NimNode = value[0]
+      let sel: NimNode  = ident"caseDisc"
+      var caseNode: NimNode = newTree(nnkCaseStmt, sel)
 
       for br in value[1..^1]:
         case br.kind
         of nnkOfBranch:
-          var branch = newTree(nnkOfBranch)
+          var branch: NimNode = newTree(nnkOfBranch)
 
           for lit in br[0..^2]:
             branch.add(lit)
 
-          let body = br[^1]
-          let expr = (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
+          let body: NimNode = br[^1]
+          let expr: NimNode = (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
 
           branch.add(expr)
           caseNode.add(branch)
 
         of nnkElse:
-          let body = br[0]
-          let expr = (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
+          let body: NimNode = br[0]
+          let expr: NimNode = (if body.kind == nnkStmtList and body.len > 0: body[^1] else: body)
           caseNode.add(newTree(nnkElse, expr))
 
         else: discard
@@ -145,11 +157,13 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
 
   proc lowerMountChildren(parent, node: NimNode): NimNode {.compileTime.} =
     proc toExpr(body: NimNode): NimNode {.compileTime.} =
-      let cont = genSym(nskLet, "cont")
+      let cont: NimNode = genSym(nskLet, "cont")
+
       result = newTree(nnkStmtList,
         newLetStmt(cont, newCall(ident"jsCreateElement", newCall(ident"cstring", newLit("span")))),
         newCall(ident"setStringAttr", cont, newLit("style"), newLit("display: contents"))
       )
+
       if body.kind in {nnkStmtList, nnkStmtListExpr}:
         for stmt in body:
           result.add(lowerMountChildren(cont, stmt))
@@ -218,15 +232,16 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
       result = stmts
 
     of nnkCaseStmt:
-      let disc = node[0]
-      let sel = ident"caseDisc"
+      let disc: NimNode = node[0]
+      let sel: NimNode = ident"caseDisc"
 
       let caseNode = newTree(nnkCaseStmt, sel)
 
       for br in node[1..^1]:
         case br.kind
         of nnkOfBranch:
-          var branch = newTree(nnkOfBranch)
+          var branch: NimNode = newTree(nnkOfBranch)
+
           for lit in br[0..^2]:
             branch.add(lit)
           branch.add(toExpr(br[^1]))
@@ -248,16 +263,16 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
           bodyIdx = i
           break
 
-      let bodyNode = node[bodyIdx]
-      var iterExpr = node[bodyIdx - 1]
+      let bodyNode: NimNode = node[bodyIdx]
+      var iterExpr: NimNode = node[bodyIdx - 1]
 
       var names: seq[NimNode] = @[]
       for i in 0 ..< bodyIdx - 1:
         names.add(node[i])
 
-      let renderFn = genSym(nskProc, "render")
-      let itSym = genSym(nskParam, "it")
-      let frag = genSym(nskLet,  "frag")
+      let renderFn: NimNode = genSym(nskProc, "render")
+      let itSym: NimNode = genSym(nskParam, "it")
+      let frag: NimNode = genSym(nskLet,  "frag")
 
       # build binding defs
       var bindDefs: NimNode
@@ -273,7 +288,7 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
         bindDefs.add(newEmptyNode()) # type slot
         bindDefs.add(itSym)          # rhs
 
-      let renderProc = newProc(
+      let renderProc: NimNode = newProc(
         renderFn,
         params = [ident"Node", newIdentDefs(itSym, ident"auto")],
         body = newTree(nnkStmtList,
@@ -290,7 +305,7 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
       )
 
     of nnkWhileStmt:
-      let loop = copy(node)
+      let loop: NimNode = copy(node)
       loop[^1] = lowerMountChildren(parent, node[^1])
       result = loop
 
@@ -322,7 +337,7 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
     else:
       pushChild(a)
 
-  let createExpr =
+  let createExpr: NimNode =
     if tagName == "fragment":
       newCall(ident"jsCreateFragment")
     else:
@@ -365,11 +380,11 @@ macro defineHtmlElements*(names: varargs[untyped]): untyped =
     else: astToStr(n)
 
   for n in names:
-    let s = tagNameOf(n)
+    let s: string = tagNameOf(n)
 
     result.add(quote do:
       macro `n`*(args: varargs[untyped]): untyped =
-        var call = newCall(ident"defineHtmlElement")
+        var call: NimNode = newCall(ident"defineHtmlElement")
         call.add(newLit(`s`))
 
         for it in args:

@@ -1,6 +1,6 @@
 when isMainModule and defined(js):
-
   import ../src/nimbus
+
   type
     Feature = object
       title: string
@@ -27,6 +27,8 @@ when isMainModule and defined(js):
 
   let accentPalette = @["#6c63ff", "#00b894", "#f39c12", "#ff6584"]
   let paletteIndex = signal(0)
+  let accentSignal = derived(paletteIndex, proc(i: int): string = accentPalette[i mod accentPalette.len])
+  let paritySignal = signal(true)
 
   styled Container = d:
     """
@@ -81,6 +83,7 @@ when isMainModule and defined(js):
       transition: opacity .2s;
       box-shadow: 0 10px 25px rgba(0,0,0,0.12);
       color: white;
+      background: var(--hero-bg, #6c63ff);
     """
 
   styled FeatureGrid = d:
@@ -122,26 +125,8 @@ when isMainModule and defined(js):
       text-align: center;
     """
 
-  styled Codeblock = d:
-    """
-      background-color: #eee;
-      color: #000;
-      padding: 1rem 1.25rem;
-      border-radius: 12px;
-      font-weight: 600;
-      text-align: center;
-    """
-
   let app: Node =
     Container:
-      style:
-        """
-          .scoped_class {
-            display: flex;
-            flex-direction: column;
-            gap: 2.5rem;
-          }
-        """
       ContentStack(class="scoped_class"):
         HeroPanel:
           HeroTitle: "Nimbus Styled Components"
@@ -151,10 +136,7 @@ when isMainModule and defined(js):
             "and keeps your handwritten class names intact."
 
           HeroButton(
-            style = derived(paletteIndex, proc(i: int): string =
-              let c = accentPalette[i mod accentPalette.len]
-              "background: " & c & ";"
-            ),
+            styleVars = styleVars("--hero-bg" = accentSignal),
             onClick = proc (e: Event) =
               paletteIndex.set((paletteIndex.get() + 1) mod accentPalette.len)
           ):
@@ -162,21 +144,39 @@ when isMainModule and defined(js):
 
         FeatureGrid:
           for feat in features:
-            FeatureCard(
-              style = "border-top-color: " & feat.accent & ";"
-            ):
+            FeatureCard(style = "border-top-color: " & feat.accent & ";"):
               FeatureHeading(style = "color: " & feat.accent & ";"):
                 feat.title
 
               FeatureText:
                 feat.description
 
-        if derived(paletteIndex, proc (x: int): bool = x mod 2 == 0):
-          ParityBanner:
-            "Even palette index — mounted style, will unmount on Odd index. "
-            "You can run the following in Devtools -> Console to see:"
+        HeroButton(
+          styleVars = styleVars("--hero-bg" = accentSignal),
+          onClick = proc (e: Event) =
+            paritySignal.set(not paritySignal.get())
+            {.emit: """console.log(document.querySelector('[data-styled="nimbus"]').sheet.cssRules);""".}
+        ):
+          if paritySignal: "Unmount style" else: "Mount style"
 
-          Codeblock:
-            "document.querySelector('[data-styled=\"nimbus\"]').sheet.cssRules"
+        HeroCopy:
+          "View Devtools -> Console to see Stylesheets mount and unmount with the component below."
+
+        if paritySignal:
+          ParityBanner:
+            "Style mounted!"
+
+      style:
+        """
+          :root {
+            background: linear-gradient(135deg, #0f172a, #1e1b4b);
+          }
+
+          .scoped_class {
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+          }
+        """
 
   render(app)

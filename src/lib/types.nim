@@ -21,6 +21,12 @@ when defined(js):
       ruleIndex*: int
       count*: int
 
+    CssVarEntry* = object
+      name*: string
+      literal*: string
+      signal*: Signal[string]
+      isSignal*: bool
+
     Props* = object of RootObj
       accesskey*: string = ""        # Keyboard shortcut to activate/focus an element
       autocapitalize*: string = ""   # Controls text capitalization in forms (none, sentences, etc.)
