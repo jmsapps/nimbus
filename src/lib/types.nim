@@ -18,7 +18,7 @@ when defined(js):
 
     StyleEntry* = object
       css*: string
-      count*: int
+      ruleIndex*: int
 
     Props* = object of RootObj
       accesskey*: string = ""        # Keyboard shortcut to activate/focus an element

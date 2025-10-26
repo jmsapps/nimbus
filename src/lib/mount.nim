@@ -193,6 +193,13 @@ when defined(js):
   proc setStringAttr*(el: Node, key: string, value: string) =
     let keyLowered = key.toLowerAscii()
     case keyLowered
+    of "class":
+      let merged = unionWithStyled(el, cstring(value))
+      if merged.len == 0:
+        jsRemoveAttribute(el, cstring("class"))
+      else:
+        jsSetAttribute(el, cstring("class"), merged)
+      return
     of "value":
       jsSetProp(el, propKey(keyLowered), cstring(value))
     of "checked":
@@ -204,16 +211,13 @@ when defined(js):
       else:
         if value.len == 0:
           case keyLowered
-          of "class", "style":
+          of "style":
             discard
           else:
             jsSetProp(el, propKey(keyLowered), cstring(""))
           jsRemoveAttribute(el, cstring(keyLowered))
         else:
           case keyLowered
-          of "class":
-            let merged = unionWithStyled(el, cstring(value))
-            jsSetAttribute(el, cstring("class"), merged)
           of "style":
             discard
           else:

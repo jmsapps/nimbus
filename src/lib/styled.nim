@@ -2,20 +2,45 @@ when defined(js):
   from dom import Node, document
   import
     macros,
-    strutils,
     tables
 
   import
     shims,
-    signals,
     types
 
 
   var
     styleNode: Node
-    styleSignal: Signal[string]
     styleEntries: Table[string, StyleEntry] = initTable[string, StyleEntry]()
-    styleOrder: seq[string] = @[]
+
+
+  proc jsInsertCssRule(el: Node; rule: cstring; index: int): int {.importjs: """
+    (function(el, rule, index){
+      if (!el || !el.sheet) return -1;
+      var sheet = el.sheet;
+      var target = (typeof index === 'number' && index >= 0)
+        ? Math.min(index, sheet.cssRules.length)
+        : sheet.cssRules.length;
+      try {
+        return sheet.insertRule(rule, target);
+      } catch (err) {
+        console.error(err);
+        return -1;
+      }
+    })(#,#,#)
+  """.}
+
+
+  proc jsSetRuleCss(el: Node; index: int; css: cstring) {.importjs: """
+    (function(el, index, css){
+      if (!el || !el.sheet) return;
+      var sheet = el.sheet;
+      var rule = sheet.cssRules[index];
+      if (rule && rule.style) {
+        rule.style.cssText = css || '';
+      }
+    })(#,#,#)
+  """.}
 
 
   proc jsMarkStyled(el: Node; cls: cstring): bool {.importjs: """
@@ -50,62 +75,22 @@ when defined(js):
       styleNode = jsCreateElement(cstring("style"))
       jsSetAttribute(styleNode, cstring("data-styled"), cstring("nimbus"))
       discard jsAppendChild(document.head, styleNode)
-      styleSignal = signal("")
-      discard effect(proc (): Unsub =
-        jsSetProp(styleNode, cstring("textContent"), cstring(styleSignal.get()))
-        return proc () = discard
-      , [styleSignal])
-
-
-  proc removeFromOrder(cls: string) =
-    var i = 0
-    while i < styleOrder.len:
-      if styleOrder[i] == cls:
-        styleOrder.delete(i)
-        break
-      inc i
-
-
-  proc rewriteSheet() =
-    ensureStyleNode()
-    var buf = ""
-    for cls in styleOrder:
-      if cls in styleEntries:
-        let entry = styleEntries[cls]
-        if entry.count > 0:
-          buf.add("." & cls & "{")
-          buf.add(entry.css)
-          buf.add("}\n")
-    styleSignal.set(buf)
 
 
   proc ensureEntry(cls, css: string) =
+    ensureStyleNode()
     if cls notin styleEntries:
-      styleEntries[cls] = StyleEntry(css: css, count: 0)
-      styleOrder.add(cls)
+      let rule = "." & cls & "{" & css & "}"
+      let idx = jsInsertCssRule(styleNode, cstring(rule), -1)
+      styleEntries[cls] = StyleEntry(css: css, ruleIndex: idx)
     elif styleEntries[cls].css != css:
-      styleEntries[cls].css = css
-      if styleEntries[cls].count > 0:
-        rewriteSheet()
-
-
-  proc retainStyle(cls: string) =
-    if cls notin styleEntries: return
-    if styleEntries[cls].count == 0:
-      styleEntries[cls].count = 1
-      rewriteSheet()
-    else:
-      styleEntries[cls].count = styleEntries[cls].count + 1
-
-
-  proc releaseStyle(cls: string) =
-    if cls notin styleEntries: return
-    if styleEntries[cls].count <= 1:
-      styleEntries.del(cls)
-      removeFromOrder(cls)
-      rewriteSheet()
-    else:
-      styleEntries[cls].count = styleEntries[cls].count - 1
+      var entry = styleEntries[cls]
+      entry.css = css
+      if entry.ruleIndex >= 0:
+        jsSetRuleCss(styleNode, entry.ruleIndex, cstring(css))
+      else:
+        entry.ruleIndex = jsInsertCssRule(styleNode, cstring("." & cls & "{" & css & "}"), -1)
+      styleEntries[cls] = entry
 
 
   proc injectCssOnce*(cls: string; css: string) =
@@ -114,33 +99,12 @@ when defined(js):
 
   proc markStyledClass*(el: Node; cls: string) =
     # stash the styled class on a data-* so mount layer can union it
-    if jsMarkStyled(el, cstring(cls)):
-      retainStyle(cls)
+    discard jsMarkStyled(el, cstring(cls))
 
 
   proc unionWithStyled*(el: Node; incoming: cstring): cstring =
     # merge incoming class string with data-styled before setting 'class'
     jsUnionStyled(el, incoming)
-
-
-  proc jsReadStyled(el: Node): cstring {.importjs: """
-    (function(el){
-      if (!el || typeof el.getAttribute !== 'function') return '';
-      return el.getAttribute('data-styled') || '';
-    })(#)
-  """.}
-
-
-  proc releaseStyledFromNode(el: Node) =
-    let attr = $jsReadStyled(el)
-    if attr.len == 0:
-      return
-
-    for cls in attr.splitWhitespace():
-      if cls.len > 0:
-        releaseStyle(cls)
-
-  addNodeDisposer(releaseStyledFromNode)
 
 
   macro styled*(Name, Base, CSS: untyped): untyped =

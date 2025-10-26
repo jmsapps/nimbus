@@ -118,8 +118,7 @@ when isMainModule:
 
   styled(ParityBanner, d):
     """
-      background: #f1f5f9;
-      color: #0f172a;
+      color: #fff;
       padding: 1rem 1.25rem;
       border-radius: 12px;
       font-weight: 600;
