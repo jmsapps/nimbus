@@ -42,6 +42,10 @@ when defined(js):
 
       cleanupRegistry.del(k)
 
+    for hook in nodeDisposers:
+      if hook != nil:
+        hook(el)
+
 
   proc disposeNode*(el: Node) =
     if el == nil:

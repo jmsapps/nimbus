@@ -1,6 +1,6 @@
-import ../src/nimbus
+when isMainModule and defined(js):
 
-when isMainModule:
+  import ../src/nimbus
   type
     Feature = object
       title: string
@@ -41,12 +41,9 @@ when isMainModule:
       padding: 3rem 1rem;
     """
 
-  styled(ContentStack, d):
+  styled(ContentStack, Container):
     """
       width: min(960px, 100%);
-      display: flex;
-      flex-direction: column;
-      gap: 2.5rem;
     """
 
   styled(HeroPanel, section):
@@ -63,6 +60,7 @@ when isMainModule:
     """
       font-size: clamp(2.4rem, 4vw, 3.4rem);
       margin: 0 0 1rem;
+      color: #e2e8f0;
     """
 
   styled(HeroCopy, p):
@@ -70,7 +68,7 @@ when isMainModule:
       max-width: 640px;
       color: #cbd5f5;
       line-height: 1.8;
-      margin: 0;
+      margin-bottom: 12px;
     """
 
   styled(HeroButton, button):
@@ -127,7 +125,15 @@ when isMainModule:
 
   let app: Node =
     Container:
-      ContentStack:
+      style:
+        """
+          .scoped_class {
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+          }
+        """
+      ContentStack(class="scoped_class"):
         HeroPanel:
           HeroTitle: "Nimbus Styled Components"
 
