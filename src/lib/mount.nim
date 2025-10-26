@@ -20,6 +20,7 @@ when defined(js):
   proc toNode*(x: int): Node = jsCreateTextNode(cstring($x))
   proc toNode*(x: float): Node = jsCreateTextNode(cstring($x))
   proc toNode*(x: bool): Node = jsCreateTextNode(cstring($x))
+  proc toNode*[T](x: T): Node = jsCreateTextNode(cstring($x))
 
 
   proc guardSeq*[T](xs: seq[T]): seq[T] {.inline.} = xs
@@ -30,8 +31,9 @@ when defined(js):
     var n = startN.nextSibling
     while n != endN and n != nil:
       let nxt = n.nextSibling
-      # TODO: apply disposeNode(n)
+
       runCleanups(n)
+
       discard jsRemoveChild(parent, n)
       n = nxt
 
@@ -80,7 +82,7 @@ when defined(js):
 
   proc mountChild*[T](parent: Node, s: Signal[T]) =
     let startN = jsCreateTextNode(cstring(""))
-    let endN   = jsCreateTextNode(cstring(""))
+    let endN = jsCreateTextNode(cstring(""))
     discard jsAppendChild(parent, startN)
     discard jsAppendChild(parent, endN)
 
@@ -89,7 +91,9 @@ when defined(js):
       discard jsInsertBefore(parent, toNode(v), endN)
 
     render(s.get())
+
     let unsub = s.sub(proc(v: T) = render(v))
+
     registerCleanup(startN, unsub)
 
 

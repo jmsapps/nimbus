@@ -37,7 +37,7 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
     children.add(node)
 
   proc lowerMountAttributes(keyRaw: string, value: NimNode) {.compileTime.} =
-    var key = keyRaw
+    var key: string = keyRaw
 
     if key == "className":
       key = "class"

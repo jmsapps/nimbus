@@ -1,6 +1,9 @@
 when defined(js):
   from dom import document, Node, Event, Window
 
+  # Dev
+  proc jsLog*[T](n: T) {.importjs: "console.log(#)".}
+
   # Render
   proc render*(node: Node) {.importjs: "document.body.appendChild(#)".}
 
