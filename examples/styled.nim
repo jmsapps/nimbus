@@ -28,7 +28,7 @@ when isMainModule and defined(js):
   let accentPalette = @["#6c63ff", "#00b894", "#f39c12", "#ff6584"]
   let paletteIndex = signal(0)
 
-  styled(Container, d):
+  styled Container = d:
     """
       min-height: 100vh;
       margin: 0;
@@ -41,12 +41,12 @@ when isMainModule and defined(js):
       padding: 3rem 1rem;
     """
 
-  styled(ContentStack, Container):
+  styled ContentStack = Container:
     """
       width: min(960px, 100%);
     """
 
-  styled(HeroPanel, section):
+  styled HeroPanel = section:
     """
       background: rgba(15, 23, 42, 0.65);
       border-radius: 32px;
@@ -56,14 +56,14 @@ when isMainModule and defined(js):
       box-shadow: 0 25px 70px rgba(8, 12, 30, 0.55);
     """
 
-  styled(HeroTitle, h1):
+  styled HeroTitle = h1:
     """
       font-size: clamp(2.4rem, 4vw, 3.4rem);
       margin: 0 0 1rem;
       color: #e2e8f0;
     """
 
-  styled(HeroCopy, p):
+  styled HeroCopy = p:
     """
       max-width: 640px;
       color: #cbd5f5;
@@ -71,7 +71,7 @@ when isMainModule and defined(js):
       margin-bottom: 12px;
     """
 
-  styled(HeroButton, button):
+  styled HeroButton = button:
     """
       border: none;
       padding: 0.9rem 1.6rem;
@@ -83,14 +83,14 @@ when isMainModule and defined(js):
       color: white;
     """
 
-  styled(FeatureGrid, d):
+  styled FeatureGrid = d:
     """
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 1.5rem;
     """
 
-  styled(FeatureCard, d):
+  styled FeatureCard = d:
     """
       background: white;
       color: #0f172a;
@@ -100,23 +100,32 @@ when isMainModule and defined(js):
       border-top: 4px solid transparent;
     """
 
-  styled(FeatureHeading, h3):
+  styled FeatureHeading = h3:
     """
       margin: 0 0 0.75rem;
       font-size: 1.25rem;
       color: inherit;
     """
 
-  styled(FeatureText, p):
+  styled FeatureText = p:
     """
       margin: 0;
       color: #334155;
       line-height: 1.6;
     """
 
-  styled(ParityBanner, d):
+  styled ParityBanner = d:
     """
       color: #fff;
+      border-radius: 12px;
+      font-weight: 600;
+      text-align: center;
+    """
+
+  styled Codeblock = d:
+    """
+      background-color: #eee;
+      color: #000;
       padding: 1rem 1.25rem;
       border-radius: 12px;
       font-weight: 600;
@@ -164,6 +173,10 @@ when isMainModule and defined(js):
 
         if derived(paletteIndex, proc (x: int): bool = x mod 2 == 0):
           ParityBanner:
-            "Even palette index — mounted style, will unmount on Odd index."
+            "Even palette index — mounted style, will unmount on Odd index. "
+            "You can run the following in Devtools -> Console to see:"
+
+          Codeblock:
+            "document.querySelector('[data-styled=\"nimbus\"]').sheet.cssRules"
 
   render(app)

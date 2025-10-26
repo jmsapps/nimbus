@@ -102,18 +102,23 @@ when defined(js):
     ensureStyleNode()
     if cls notin styleEntries:
       styleEntries[cls] = StyleEntry(css: css, ruleIndex: -1, count: 0)
+
     elif styleEntries[cls].css != css:
       var entry = styleEntries[cls]
       entry.css = css
+
       if entry.count > 0 and entry.ruleIndex >= 0:
         jsSetRuleCss(styleNode, entry.ruleIndex, cstring(css))
+
       styleEntries[cls] = entry
 
 
   proc retainStyle(cls: string) =
     if cls notin styleEntries:
       return
+
     var entry = styleEntries[cls]
+
     if entry.count == 0:
       ensureStyleNode()
       entry.ruleIndex = jsInsertCssRule(
@@ -121,6 +126,7 @@ when defined(js):
         cstring("." & cls & "{" & entry.css & "}"),
         -1
       )
+
     entry.count = entry.count + 1
     styleEntries[cls] = entry
 
@@ -128,10 +134,14 @@ when defined(js):
   proc releaseStyle(cls: string) =
     if cls notin styleEntries:
       return
+
     var entry = styleEntries[cls]
+
     if entry.count <= 1:
       let removedIdx = entry.ruleIndex
+
       styleEntries.del(cls)
+
       if removedIdx >= 0:
         jsDeleteCssRule(styleNode, removedIdx)
         for _, other in styleEntries.mpairs():
@@ -176,9 +186,34 @@ when defined(js):
   addNodeDisposer(releaseStyledFromNode)
 
 
-  macro styled*(Name, Base, CSS: untyped): untyped =
+  macro defstyled*(Name, Base, CSS: untyped): untyped =
     # Defines a thin template wrapper that always injects a css attribute
     # before forwarding the rest of the arguments to the base element.
     result = quote do:
       template `Name`*(args: varargs[untyped]): untyped =
         `Base`(css = `CSS`, args)
+
+
+  macro styled*(args: varargs[untyped]): untyped =
+    if (
+      args.len == 3 and
+      args[0].kind in {nnkIdent, nnkAccQuoted} and
+      args[1].kind in {nnkIdent, nnkAccQuoted}
+    ):
+      result = quote do:
+        defstyled(`args[0]`, `args[1]`, `args[2]`)
+
+    elif args.len == 2 and args[0].kind == nnkExprEqExpr:
+      let eq = args[0]
+
+      if eq[0].kind notin {nnkIdent, nnkAccQuoted} or eq[1].kind notin {nnkIdent, nnkAccQuoted}:
+        error("styled expects identifiers on both sides of `=`", eq)
+      let nameNode = eq[0]
+      let baseNode = eq[1]
+      let body = args[1]
+
+      result = quote do:
+        defstyled(`nameNode`, `baseNode`, `body`)
+
+    else:
+      error("styled expects `styled Name = Base: css` or `styled(Name, Base): css`", args[0])
