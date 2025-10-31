@@ -21,6 +21,7 @@ when defined(js):
         switch: LightSwitch
 
     let dice: Signal[int] = signal[int](rand(1..6))
+    let count: Signal[int] = signal[int](0)
     let light: Signal[Light] = signal(Light(switch: LightSwitch(value: on)))
 
     let component: Node =
@@ -39,7 +40,7 @@ when defined(js):
           onClick = proc (e: Event) =
             let roll = rand(1..6)
             let fluke = rand(1..1000)
-
+            echo roll
             dice.set((if fluke == 666: 7 else: roll))
         ):
           "Roll dice"
@@ -60,5 +61,24 @@ when defined(js):
             light.set(Light(switch: LightSwitch(value: (if value == on: off else: on))))
         ):
           "Turn light "; if light.switch.value == on: "off" else: "on"
+
+        br();br();
+        "------------------------------"
+        br();br();
+
+        h2:
+          "count: "; count; br()
+          if count < 3:
+            "count is less than 3"
+          elif count >= 3 and count < 10:
+            "count is less than 10"
+          else:
+            "count is greater than 10"
+
+        button(onClick =
+          proc (e: Event) =
+            count.set(if count() < 20: count() + 1 else: 1)
+        ):
+          "Increment count"
 
     discard jsAppendChild(document.body, component)

@@ -186,5 +186,5 @@ macro Routes*(location: typed; body: untyped): untyped =
   ))
 
   result = quote do:
-    span(style="display: contents"):
+    fragment:
       `caseStmt`

@@ -12,18 +12,17 @@ when defined(js):
     nextId = 0
 
 
-  when defined(js):
-    proc nodeKey(n: Node): int
-      {.importjs: """
-      (function(x) {
-        if (x.__nid === undefined) {
-          if (window.__nid === undefined) window.__nid = 0;
-          window.__nid = window.__nid + 1;
-          x.__nid = window.__nid;
-        }
-        return x.__nid;
-      })(#)
-      """.}
+  proc nodeKey(n: Node): int
+    {.importjs: """
+    (function(x) {
+      if (x.__nid === undefined) {
+        if (window.__nid === undefined) window.__nid = 0;
+        window.__nid = window.__nid + 1;
+        x.__nid = window.__nid;
+      }
+      return x.__nid;
+    })(#)
+    """.}
 
 
   proc registerCleanup*(el: Node, fn: Unsub) =
@@ -38,30 +37,14 @@ when defined(js):
 
     if k in cleanupRegistry:
       for fn in cleanupRegistry[k]:
-        if fn != nil: fn()
+        if fn != nil:
+          fn()
 
       cleanupRegistry.del(k)
 
     for hook in nodeDisposers:
       if hook != nil:
         hook(el)
-
-
-  proc disposeNode*(el: Node) =
-    if el == nil:
-      return
-
-    runCleanups(el)
-    for hook in nodeDisposers:
-      if hook != nil:
-        hook(el)
-
-    var child = jsGetNodeProp(el, cstring("firstChild"))
-
-    while child != nil:
-      let next = jsGetNodeProp(child, cstring("nextSibling"))
-      disposeNode(child)
-      child = next
 
 
   proc debugId(): string =

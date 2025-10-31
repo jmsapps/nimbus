@@ -14,6 +14,8 @@ when defined(js):
 
   # Chilren mount utils
   proc toNode*(n: Node): Node = n
+  proc toNode*(builder: proc (): Node {.closure.}): Node = builder()
+  proc toNode*(builder: proc (): Node {.nimcall.}): Node = builder()
   proc toNode*(s: char): Node = jsCreateTextNode(cstring($s))
   proc toNode*(s: string): Node = jsCreateTextNode(cstring(s))
   proc toNode*(s: cstring): Node = jsCreateTextNode(s)
@@ -55,6 +57,12 @@ when defined(js):
   proc mountChild*(parent: Node, child: Node) =
     discard jsAppendChild(parent, child)
 
+  proc mountChild*(parent: Node, builder: proc (): Node {.closure.}) =
+    discard jsAppendChild(parent, toNode(builder))
+
+  proc mountChild*(parent: Node, builder: proc (): Node {.nimcall.}) =
+    discard jsAppendChild(parent, toNode(builder))
+
 
   proc mountChild*(parent: Node, child: char) =
     discard jsAppendChild(parent, jsCreateTextNode(cstring($child)))
@@ -87,8 +95,11 @@ when defined(js):
     discard jsAppendChild(parent, endN)
 
     proc render(v: T) =
-      removeBetween(parent, startN, endN)
-      discard jsInsertBefore(parent, toNode(v), endN)
+      let parentNode = jsGetNodeProp(endN, cstring("parentNode"))
+      if parentNode.isNil:
+        return
+      removeBetween(parentNode, startN, endN)
+      discard jsInsertBefore(parentNode, toNode(v), endN)
 
     render(s.get())
 
@@ -136,11 +147,14 @@ when defined(js):
 
 
     proc rerender(xs: seq[T]) =
-      removeBetween(parent, startN, endN)
+      let parentNode = jsGetNodeProp(endN, cstring("parentNode"))
+      if parentNode.isNil:
+        return
+      removeBetween(parentNode, startN, endN)
       let frag = jsCreateFragment()
       for it in xs:
         discard jsAppendChild(frag, render(it))
-      discard jsInsertBefore(parent, frag, endN)
+      discard jsInsertBefore(parentNode, frag, endN)
 
     rerender(items)
 
@@ -152,11 +166,14 @@ when defined(js):
     discard jsAppendChild(parent, endN)
 
     proc rerender(xs: seq[T]) =
-      removeBetween(parent, startN, endN)
+      let parentNode = jsGetNodeProp(endN, cstring("parentNode"))
+      if parentNode.isNil:
+        return
+      removeBetween(parentNode, startN, endN)
       let frag = jsCreateFragment()
       for it in xs:
         discard jsAppendChild(frag, render(it))
-      discard jsInsertBefore(parent, frag, endN)
+      discard jsInsertBefore(parentNode, frag, endN)
 
     rerender(items.get())
     let unsub = items.sub(proc (xs: seq[T]) = rerender(xs))

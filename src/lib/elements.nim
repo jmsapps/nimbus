@@ -156,21 +156,48 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
     attrSetters.add(newCall(ident"mountAttr", node, kLit, value))
 
   proc lowerMountChildren(parent, node: NimNode): NimNode {.compileTime.} =
+    proc emptyFragmentExpr(): NimNode {.compileTime.} =
+      let cont = genSym(nskLet, "cont")
+      let lambdaProc = newProc(
+        name = newEmptyNode(),
+        params = @[ident"Node"],
+        procType = nnkLambda,
+        body = newStmtList(
+          newLetStmt(cont, newCall(ident"jsCreateFragment")),
+          cont
+        )
+      )
+      let builderSym = genSym(nskLet, "builder")
+      newTree(nnkStmtListExpr,
+        newLetStmt(builderSym, lambdaProc),
+        builderSym
+      )
+
     proc toExpr(body: NimNode): NimNode {.compileTime.} =
       let cont: NimNode = genSym(nskLet, "cont")
-
-      result = newTree(nnkStmtList,
-        newLetStmt(cont, newCall(ident"jsCreateElement", newCall(ident"cstring", newLit("span")))),
-        newCall(ident"setStringAttr", cont, newLit("style"), newLit("display: contents"))
+      var builderBody: NimNode = newStmtList(
+        newLetStmt(cont, newCall(ident"jsCreateFragment"))
       )
 
       if body.kind in {nnkStmtList, nnkStmtListExpr}:
         for stmt in body:
-          result.add(lowerMountChildren(cont, stmt))
+          builderBody.add(lowerMountChildren(cont, stmt))
       else:
-        result.add(lowerMountChildren(cont, body))
+        builderBody.add(lowerMountChildren(cont, body))
 
-      result.add(cont)
+      builderBody.add(cont)
+
+      let lambdaProc = newProc(
+        name = newEmptyNode(),
+        params = @[ident"Node"],
+        procType = nnkLambda,
+        body = builderBody
+      )
+      let builderSym = genSym(nskLet, "builder")
+      result = newTree(nnkStmtListExpr,
+        newLetStmt(builderSym, lambdaProc),
+        builderSym
+      )
 
     case node.kind
     of nnkStmtList, nnkStmtListExpr, nnkBlockStmt:
@@ -214,7 +241,7 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
           parent,
           gated,
           bodies[i],
-          newCall(ident"jsCreateFragment")
+          emptyFragmentExpr()
         ))
 
         stmts.add(newAssignment(anyPrior, newCall(ident"or", anyPrior, ciSig)))
@@ -226,7 +253,7 @@ macro defineHtmlElement*(tagNameLit: static[string]; args: varargs[untyped]): un
           parent,
           elseCond,
           elseBody,
-          newCall(ident"jsCreateFragment")
+          emptyFragmentExpr()
         ))
 
       result = stmts
