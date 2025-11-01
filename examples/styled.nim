@@ -10,7 +10,7 @@ when isMainModule and defined(js):
   let features = @[
     Feature(
       title: "Signals Everywhere",
-      description: "Bind state directly to DOM structure and watch Nimbus keep everything in sync.",
+      description: "Bind state directly to DOM structure and watch NTML keep everything in sync.",
       accent: "#6c63ff"
     ),
     Feature(
@@ -129,10 +129,10 @@ when isMainModule and defined(js):
     Container:
       ContentStack(class="scoped_class"):
         HeroPanel:
-          HeroTitle: "Nimbus Styled Components"
+          HeroTitle: "NTML Styled Components"
 
           HeroCopy:
-            "Every element accepts a `css` attribute. Nimbus hashes the block, injects a scoped class, " &
+            "Every element accepts a `css` attribute. NTML hashes the block, injects a scoped class, " &
             "and keeps your handwritten class names intact."
 
           HeroButton(

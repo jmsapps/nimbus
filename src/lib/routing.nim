@@ -175,7 +175,7 @@ macro Routes*(location: typed; body: untyped): untyped =
 
   walk(body, "")
 
-  var caseStmt = newTree(nnkCaseStmt, location)  # keep `location` raw for your DSL
+  var caseStmt = newTree(nnkCaseStmt, location)
 
   for b in branches:
     caseStmt.add(b)

@@ -2,8 +2,8 @@
 
 This was the first implementation of this library before I moved things to `src/lib`. A number of
 examples at the bottom tested various features such as basic signal support for children,
-attributes, and if/case/for statements. Repo was changes to `NTML` to avoid name collision with
-the Status ETH blockchain.
+attributes, and if/case/for statements. Repo was changed to `NTML` to avoid name collision
+with the Status ETH blockchain.
 
 ```nim
 import macros, dom, strutils, tables

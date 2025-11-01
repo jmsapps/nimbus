@@ -32,11 +32,14 @@ var count: Signal[int] = signal(0)
 let doubled: Signal[string] = derived(count, proc (x: int): string = $(x*2))
 
 let component: Node =
-  d(id="hero", class="container"):
-    "Count: "; count; br(); "Doubled: "; doubled; br(); br();
+  d(id="container"):
+    "Count: "; count; br();
+    "Doubled: "; doubled; br(); br();
+
     button(
-      class="btn",
-      onClick = proc (e: Event) = count.set(count.get() + 1)
+      type="button",
+      onClick = proc (e: Event) =
+        count.set(count() + 1)
     ):
       "Increment"
 ```

@@ -7,17 +7,6 @@ when isMainModule:
       firstname: string
       favoriteFood: string
 
-  let styleTag: Node =
-    style:
-      """
-        ._div_container_a {
-          background-color: #eee;
-          padding: 24px;
-          border-radius: 20px;
-          font-family: sans-serif;
-        }
-      """
-
   proc NestedComponent(props: Props, children: Node): Node =
     d(id=props.id):
       children
@@ -73,7 +62,7 @@ when isMainModule:
         of "apples", "cherries": "red"
         of "bananas": "yellow"
         else: "it depends",
-      class=props.class
+      class=props.class & " playground"
     ):
       h1(
         `data-even`=
@@ -85,12 +74,12 @@ when isMainModule:
 
       "Count: "; count; br(); "Doubled: "; doubled; br(); br();
       button(
-        class="btn",
+        class="btn primary",
         onClick = proc (e: Event) =
           count.set(count.get() + 1)
       ): "Increment"
 
-      ul:
+      ul(class="future-list"):
         li: derived(count, proc (x: int): string = $(x*2 + 1))
         li: derived(count, proc (x: int): string = $(x*2 + 2))
         li: derived(count, proc (x: int): string = $(x*2 + 3))
@@ -119,7 +108,10 @@ when isMainModule:
 
       br();br()
 
-      d(hidden=(derived(isEven, proc(x: bool): bool = not x))):
+      d(
+        class="notice",
+        hidden=(derived(isEven, proc(x: bool): bool = not x))
+      ):
         "Hi, I'm Almanda!"
 
         br();br();
@@ -136,69 +128,245 @@ when isMainModule:
 
       br();
 
-      d:
-        button(onClick = proc(e: Event) =
-          showSection.set(not showSection.get())
+      d(class="toggle-stack"):
+        button(
+          class="btn ghost",
+          onClick = proc(e: Event) =
+            showSection.set(not showSection.get())
         ): "Toggle Section"
 
-        br(); br();
-
         if showSection:
-          "Reactive section visible!"
+          p(class="status-chip is-active"): "Reactive section visible!"
         else:
-          "Section hidden."
+          p(class="status-chip"): "Section hidden."
 
       br();br();
 
-      form(onsubmit = proc (e: Event) =
+      form(
+        class="form-card",
+        onsubmit = proc (e: Event) =
           e.preventDefault()
           echo "Submitted: ", formValue.get()
         ):
-        label(`for`="firstname"): "First name:"; br()
+        label(`for`="firstname", class="form-label"): "First name"
         input(
           id="firstname",
+          class="form-input",
           `type`="text",
           name="firstname",
           value=formValue
-        ); br()
-        button(`type`="submit", disabled=formValue == "", style="margin-top: 8px"): "Submit"
+        )
+        button(`type`="submit", class="btn primary", disabled=formValue == ""): "Submit"
 
       br();br();
 
-      form(onsubmit = proc (e: Event) =
+      form(
+        class="form-card",
+        onsubmit = proc (e: Event) =
           e.preventDefault()
           echo "Accepted? ", accepted.get()
         ):
-        label(`for`="terms"): "Accept terms and conditions"; br()
-        input(
-          id="terms",
-          `type`="checkbox",
-          name="terms",
-          checked=accepted
-        ); br()
-        button(`type`="submit", disabled=not accepted, style="margin-top: 8px"): "Submit"
+        label(`for`="terms", class="form-checkbox-label"):
+          input(
+            id="terms",
+            class="form-checkbox",
+            `type`="checkbox",
+            name="terms",
+            checked=accepted
+          )
+          span: "Accept terms and conditions"
+        button(`type`="submit", class="btn primary", disabled=not accepted): "Submit"
 
       br();br()
 
       button(
-        class="btn",
+        class="btn ghost",
         onClick = proc (e: Event) =
           people.set(@[people.get()[1], people.get()[0]])
       ): "Swap People"
 
-      ul:
+      ul(class="people-list"):
         for i, person in people:
-          li:
-            i; " "; person.firstname; " likes "; person.favoriteFood;
+          li(class="people-item"):
+            span(class="muted"): "#" & $(i + 1)
+            span: person.firstname
+            span(class="muted"): "likes " & person.favoriteFood
 
 
   let component: Node = Component(Props(
-    title: "Nimbus Test Playground",
+    title: "NTML Test Playground",
     class: "_div_container_a"
   )):
     NestedComponent(Props(id: "nested_component")):
       b:
         "This is a nested component"
+
+  let styleTag: Node =
+    style:
+      """
+        :root {
+          background: #0f172a;
+          color: #e2e8f0;
+          font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        body {
+          margin: 0;
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 3.5rem 1.5rem;
+          background: radial-gradient(circle at 10% 15%, rgba(59,130,246,0.22), transparent 55%),
+                      radial-gradient(circle at 85% 85%, rgba(56,189,248,0.22), transparent 55%),
+                      #0f172a;
+        }
+
+        .playground {
+          width: min(720px, 100%);
+          background: rgba(15, 23, 42, 0.72);
+          border-radius: 24px;
+          padding: 2.4rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1.4rem;
+          box-shadow: 0 32px 60px rgba(8, 15, 35, 0.45);
+          border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .btn {
+          border: none;
+          border-radius: 999px;
+          padding: 0.8rem 1.4rem;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+        }
+
+        .btn.primary {
+          background: linear-gradient(135deg, #2563eb, #38bdf8);
+          color: #fff;
+        }
+
+        .btn.primary:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 16px 34px rgba(37, 99, 235, 0.32);
+        }
+
+        .btn.ghost {
+          background: transparent;
+          color: inherit;
+          border: 1px solid rgba(148, 163, 184, 0.35);
+        }
+
+        .btn.ghost:hover {
+          background: rgba(148, 163, 184, 0.16);
+        }
+
+        .future-list,
+        .people-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .future-list li {
+          padding: 0.65rem 0.9rem;
+          border-radius: 12px;
+          background: rgba(148, 163, 184, 0.12);
+          border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .people-item {
+          display: flex;
+          gap: 0.7rem;
+          align-items: center;
+          padding: 0.65rem 0.9rem;
+          border-radius: 14px;
+          background: rgba(30, 41, 59, 0.65);
+          border: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .muted {
+          color: rgba(148, 163, 184, 0.72);
+        }
+
+        .notice {
+          padding: 0.85rem 1rem;
+          border-radius: 16px;
+          background: rgba(16, 185, 129, 0.2);
+          color: #bbf7d0;
+          font-weight: 600;
+        }
+
+        .toggle-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 0.6rem;
+        }
+
+        .status-chip {
+          margin: 0;
+          align-self: flex-start;
+          padding: 0.45rem 0.85rem;
+          border-radius: 999px;
+          font-size: 0.9rem;
+          background: rgba(148, 163, 184, 0.18);
+          color: rgba(226, 232, 240, 0.85);
+        }
+
+        .status-chip.is-active {
+          background: rgba(16, 185, 129, 0.22);
+          color: #bbf7d0;
+        }
+
+        .form-card {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          padding: 1.1rem;
+          border-radius: 18px;
+          background: rgba(15, 23, 42, 0.7);
+          border: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .form-label {
+          font-size: 0.8rem;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: rgba(148, 163, 184, 0.78);
+        }
+
+        .form-input {
+          border: none;
+          border-radius: 12px;
+          padding: 0.75rem 1rem;
+          background: rgba(30, 41, 59, 0.75);
+          color: inherit;
+        }
+
+        .form-input:focus {
+          outline: 2px solid rgba(56, 189, 248, 0.45);
+        }
+
+        .form-checkbox-label {
+          display: flex;
+          align-items: center;
+          gap: 0.7rem;
+          font-size: 0.95rem;
+          color: rgba(226, 232, 240, 0.9);
+        }
+
+        .form-checkbox {
+          width: 18px;
+          height: 18px;
+          accent-color: #38bdf8;
+        }
+      """
 
   discard jsAppendChild(document.head, styleTag)
   discard jsAppendChild(document.body, component)
