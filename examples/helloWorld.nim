@@ -1,4 +1,4 @@
-import ../src/nimbus
+import ../src/ntml
 
 
 when isMainModule:

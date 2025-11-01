@@ -94,7 +94,7 @@ when defined(js):
   proc ensureStyleNode() =
     if styleNode == nil:
       styleNode = jsCreateElement(cstring("style"))
-      jsSetAttribute(styleNode, cstring("data-styled"), cstring("nimbus"))
+      jsSetAttribute(styleNode, cstring("data-styled"), cstring("ntml"))
       discard jsAppendChild(document.head, styleNode)
 
 

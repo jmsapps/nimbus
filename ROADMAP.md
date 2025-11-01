@@ -1,4 +1,4 @@
-# Nimbus Roadmap
+# NTML Roadmap
 
 ## Version 0.5.0 — Core Primitives
 
@@ -26,7 +26,7 @@
 ### ✅ Project Formatting
 
 - Reorganize code into proper folder structure (`lib`, `examples`, etc.).
-- Use `nimbus.nim` as project index.
+- Use `ntml.nim` as project index.
 - Switch to absolute imports.
 
 ### ✅ Add All HTML Elements

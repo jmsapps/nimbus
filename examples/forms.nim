@@ -1,6 +1,6 @@
 
 when isMainModule and defined(js):
-  import ../src/nimbus
+  import ../src/ntml
 
   type
     Credentials = object

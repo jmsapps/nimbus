@@ -1,5 +1,5 @@
 when isMainModule and defined(js):
-  import ../src/nimbus
+  import ../src/ntml
 
   type
     Feature = object
@@ -155,7 +155,7 @@ when isMainModule and defined(js):
           styleVars = styleVars("--hero-bg" = accentSignal),
           onClick = proc (e: Event) =
             paritySignal.set(not paritySignal.get())
-            {.emit: """console.log(document.querySelector('[data-styled="nimbus"]').sheet.cssRules);""".}
+            {.emit: """console.log(document.querySelector('[data-styled="ntml"]').sheet.cssRules);""".}
         ):
           if paritySignal: "Unmount style" else: "Mount style"
 

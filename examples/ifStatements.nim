@@ -3,7 +3,7 @@ when defined(js):
     random
 
   import
-    ../src/nimbus
+    ../src/ntml
 
 
   when isMainModule:

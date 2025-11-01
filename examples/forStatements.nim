@@ -1,5 +1,5 @@
 when defined(js):
-  import ../src/nimbus
+  import ../src/ntml
 
   when isMainModule:
     type
