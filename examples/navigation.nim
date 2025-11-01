@@ -1,6 +1,7 @@
-import ../src/nimbus
 
-when isMainModule:
+when isMainModule and defined(js):
+  import ../src/nimbus
+
   type
     Credentials = object
       username: string
@@ -9,23 +10,25 @@ when isMainModule:
   let router = router()
   let location = router.location
 
-  let NotFound: Node = d:
-    d(style="padding:32px; text-align:center"):
-      h1(style="color:#c00"): "404"
-      p: "This page does not exist."
-      button(onClick = proc(e: Event) = navigate("/")): "Go Home"
+  proc NotFound(): Node =
+    d:
+      d(style="padding:32px; text-align:center"):
+        h1(style="color:#c00"): "404"
+        p: "This page does not exist."
+        button(onClick = proc(e: Event) = navigate("/")): "Go Home"
 
-  let HomePage: Node = d:
-    h1: "Home"
-    p: "Welcome to Nimbus Routing Demo!"
+  proc HomePage(): Node =
+    d:
+      h1: "Home"
+      p: "Welcome to Nimbus Routing Demo!"
 
-    button(onClick = proc(e: Event) = navigate("/login")):
-      "Login"
+      button(onClick = proc(e: Event) = navigate("/login")):
+        "Login"
 
-    button(onClick = proc(e: Event) = navigate("/about")):
-      "About"
+      button(onClick = proc(e: Event) = navigate("/about")):
+        "About"
 
-  let LoginPage: Node = block:
+  proc LoginPage(): Node =
     let creds: Signal[Credentials] = signal(Credentials(username: "", password: ""))
     let submitted: Signal[bool] = signal(false)
 
@@ -80,37 +83,41 @@ when isMainModule:
       br(); br()
       button(onClick = proc(e: Event) = navigate("/")): "Back Home"
 
-  let LoggedInPage: Node = d:
-    h1: "Welcome, you are logged in!"
-    p: "You successfully submitted the form."
+  proc LoggedInPage(): Node =
+    d:
+      h1: "Welcome, you are logged in!"
+      p: "You successfully submitted the form."
 
 
-    button(onClick = proc(e: Event) = navigate("+/settings")):
-      "Go to settings"
-    button(onClick = proc(e: Event) = navigate("/")):
-      "Log out"
+      button(onClick = proc(e: Event) = navigate("+/settings")):
+        "Go to settings"
+      button(onClick = proc(e: Event) = navigate("/")):
+        "Log out"
 
-  let SettingsPage: Node = d:
-    h1: "User Settings"
+  proc SettingsPage(): Node =
+    d:
+      h1: "User Settings"
 
-    button(onClick = proc(e: Event) = navigate("+/sub-settings")):
-      "Go to sub settings"
-    button(onClick = proc(e: Event) = navigate("/logged-in")):
-      "Go back"
+      button(onClick = proc(e: Event) = navigate("+/sub-settings")):
+        "Go to sub settings"
+      button(onClick = proc(e: Event) = navigate("/logged-in")):
+        "Go back"
 
-  let SubSettingsPage: Node = d:
-    h1: "Sub User Settings"
+  proc SubSettingsPage(): Node =
+    d:
+      h1: "Sub User Settings"
 
-    button(onClick = proc(e: Event) = navigate("-/")):
-      "Go back"
+      button(onClick = proc(e: Event) = navigate("-/")):
+        "Go back"
 
-  let AboutPage: Node = d:
-    h1: "About"
-    p: "This demo shows a simple case-based router integrated with reactive Nimbus forms."
-    button(onClick = proc(e: Event) = navigate("/")):
-      "Back Home"
+  proc AboutPage(): Node =
+    d:
+      h1: "About"
+      p: "This demo shows a simple case-based router integrated with reactive Nimbus forms."
+      button(onClick = proc(e: Event) = navigate("/")):
+        "Back Home"
 
-  let app: Node =
+  proc App(): Node =
     Routes(location):
       Route(path="/", component=HomePage)
 
@@ -126,4 +133,4 @@ when isMainModule:
 
       Route(path="*", component=NotFound)
 
-  render(app)
+  render(App())

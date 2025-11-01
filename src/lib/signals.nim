@@ -47,6 +47,19 @@ when defined(js):
         hook(el)
 
 
+  proc cleanupSubtree*(el: Node) =
+    if el == nil:
+      return
+
+    runCleanups(el)
+
+    var child = jsGetNodeProp(el, cstring("firstChild"))
+    while child != nil:
+      let next = jsGetNodeProp(child, cstring("nextSibling"))
+      cleanupSubtree(child)
+      child = next
+
+
   proc debugId(): string =
     inc(nextId)
 

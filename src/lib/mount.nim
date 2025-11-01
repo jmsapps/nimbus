@@ -34,7 +34,7 @@ when defined(js):
     while n != endN and n != nil:
       let nxt = n.nextSibling
 
-      runCleanups(n)
+      cleanupSubtree(n)
 
       discard jsRemoveChild(parent, n)
       n = nxt
@@ -180,7 +180,6 @@ when defined(js):
     registerCleanup(startN, unsub)
 
 
-  # Attribute mount utils
   proc isBooleanAttr(k: string): bool =
     let kl = k.toLowerAscii()
     for b in BOOLEAN_ATTRS:
