@@ -71,6 +71,8 @@ when defined(js):
     result.signalId = debugId()
     result.signalValue = initial
     result.signalSubs = @[]
+    result.signalWriteThrough = nil
+    result.signalInternalUpdate = false
 
 
   proc get*[T](src: Signal[T]): T =
@@ -78,6 +80,10 @@ when defined(js):
 
 
   proc set*[T](src: Signal[T], newValue: T) =
+    if (not src.signalInternalUpdate) and src.signalWriteThrough != nil:
+      src.signalWriteThrough(newValue)
+      return
+
     if newValue != src.signalValue:
       src.signalValue = newValue
 
@@ -107,7 +113,13 @@ when defined(js):
   proc derived*[A, B](src: Signal[A], fn: proc(a: A): B): Signal[B] =
     let res = signal[B](fn(src.signalValue))
 
-    discard src.sub(proc(a: A) = res.set(fn(a)))
+    discard src.sub(proc(a: A) =
+      res.signalInternalUpdate = true
+      try:
+        res.set(fn(a))
+      finally:
+        res.signalInternalUpdate = false
+    )
 
     res
 

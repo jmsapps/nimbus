@@ -10,6 +10,8 @@ when defined(js):
       signalId*: string
       signalValue*: T
       signalSubs*: seq[Subscriber[T]]
+      signalWriteThrough*: proc (newValue: T)
+      signalInternalUpdate*: bool
 
     Router* = object
       location*: Signal[string]

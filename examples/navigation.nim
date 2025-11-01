@@ -52,10 +52,7 @@ when isMainModule and defined(js):
           `type`="text",
           name="username",
           autocomplete="username",
-          value=derived(creds, proc(c: Credentials): string = c.username),
-          onInput=proc(e: Event) =
-            let c = creds.get()
-            creds.set(Credentials(username: $e.target.value, password: c.password))
+          value=creds.username,
         ); br()
 
         label(`for`="password"): "Password:"; br()
@@ -64,10 +61,7 @@ when isMainModule and defined(js):
           `type`="password",
           autocomplete="current-password",
           name="password",
-          value=derived(creds, proc(c: Credentials): string = c.password),
-          onInput=proc(e: Event) =
-            let c = creds.get()
-            creds.set(Credentials(username: c.username, password: $e.target.value))
+          value=creds.password,
         ); br()
 
         button(`type`="submit", style="margin-top: 8px"): "Submit"

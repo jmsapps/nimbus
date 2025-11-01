@@ -139,7 +139,13 @@ when defined(js):
 
 
   template `.`*[T](s: Signal[T], field: untyped): untyped =
-    derived(s, proc (x: T): auto = x.`field`)
+    let parentSignal = s
+    let childSignal = derived(parentSignal, proc (x: T): auto = x.`field`)
+    childSignal.signalWriteThrough = proc (value: typeof(childSignal.get())) =
+      var current = parentSignal.get()
+      current.`field` = value
+      parentSignal.set(current)
+    childSignal
 
 
   proc `len`*[T](s: Signal[seq[T]]): Signal[int] =

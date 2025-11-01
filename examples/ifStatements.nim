@@ -68,9 +68,9 @@ when defined(js):
 
         h2:
           "count: "; count; br()
-          if count < 3:
-            "count is less than 3"
-          elif count >= 3 and count < 10:
+          if count < 5:
+            "count is less than 5"
+          elif count >= 5 and count < 10:
             "count is less than 10"
           else:
             "count is greater than 10"
